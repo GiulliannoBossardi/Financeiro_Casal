@@ -6,6 +6,7 @@
   --border:#1e2b24; --border2:#2a3b31;
   --text:#eef5f0; --text2:#9db3a7; --text3:#6d8377;
   --accent:#3ddc84; --accent2:#2bb46b; --accent-text:#04150b; --accent-rgb:61,220,132;
+  --income:#3ddc84;
   --blue:#5aa2ff; --warn:#f5b84a; --danger:#ff6b6b;
   --shadow:0 8px 30px rgba(0,0,0,.35);
 }
@@ -14,6 +15,7 @@
   --border:#dfe8e2; --border2:#c9d6cd;
   --text:#0d1a13; --text2:#4c5f54; --text3:#7d8f84;
   --accent:#1f9d5c; --accent2:#188049; --accent-text:#ffffff; --accent-rgb:31,157,92;
+  --income:#1f9d5c;
   --blue:#2266cc; --warn:#b3790a; --danger:#c4342a;
   --shadow:0 8px 24px rgba(20,40,30,.08);
 }
@@ -125,13 +127,13 @@ label{font-size:.75rem;color:var(--text2);display:block;margin-bottom:5px;}
 .mb-20{margin-bottom:20px;}
 .stat-card{background:var(--card);border:1px solid var(--border);border-radius:13px;padding:16px;position:relative;overflow:hidden;}
 .stat-card::before{content:'';position:absolute;top:0;left:0;width:3px;height:100%;}
-.stat-card.green::before{background:var(--accent);}
+.stat-card.green::before{background:var(--income);}
 .stat-card.blue::before{background:var(--blue);}
 .stat-card.warn::before{background:var(--warn);}
 .stat-card.danger::before{background:var(--danger);}
 .stat-label{font-size:.74rem;color:var(--text2);margin-bottom:6px;}
 .stat-value{font-family:'Syne',sans-serif;font-size:1.35rem;font-weight:700;}
-.stat-value.income{color:var(--accent);}
+.stat-value.income{color:var(--income);}
 .stat-value.expense{color:var(--danger);}
 .stat-value.neutral{color:var(--text);}
 .stat-sub{font-size:.7rem;color:var(--text3);margin-top:4px;}

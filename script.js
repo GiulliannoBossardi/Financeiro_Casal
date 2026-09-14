@@ -200,6 +200,10 @@ function limparCorTema() {
   ['--accent', '--accent2', '--accent-text', '--accent-rgb'].forEach(v => root.removeProperty(v));
 }
 
+function corMonetaria(v) {
+  return (v || 0) >= 0 ? 'var(--income)' : 'var(--danger)';
+}
+
 /* ============================================
    AUTH
 ============================================ */
@@ -450,7 +454,7 @@ function renderSalarios() {
     return `<tr>
       <td>${pessoaTag(r.pessoaId)}</td><td>${Fmt.ref(r.ref)}</td>
       <td>${Fmt.brl(r.adiantamento)}</td><td>${Fmt.brl(r.pagamento)}</td>
-      <td style="color:var(--accent);font-weight:600;">${Fmt.brl(liquido)}</td><td>${Fmt.brl(r.bruto)}</td>
+      <td style="color:${corMonetaria(liquido)};font-weight:600;">${Fmt.brl(liquido)}</td><td>${Fmt.brl(r.bruto)}</td>
       <td class="row-actions"><button class="icon-btn" onclick="abrirModalSalario('${r.id}')" title="Editar">✎</button><button class="icon-btn del" onclick="excluirSalario('${r.id}')" title="Excluir">🗑</button></td>
     </tr>`;
   }).join('') : '<tr class="empty-row"><td colspan="7">Nenhum lançamento encontrado.</td></tr>';
@@ -533,7 +537,7 @@ function renderVR() {
     return `<tr>
       <td>${pessoaTag(r.pessoaId)}</td><td>${Fmt.ref(r.ref)}</td><td>${dataFmt}</td>
       <td>${Fmt.brl(r.recebido)}</td><td style="color:var(--danger);font-weight:600;">${Fmt.brl(r.utilizado)}</td>
-      <td style="color:var(--accent);font-weight:600;">${Fmt.brl(saldo)}</td>
+      <td style="color:${corMonetaria(saldo)};font-weight:600;">${Fmt.brl(saldo)}</td>
       <td>${r.obs ? r.obs : '—'}</td>
       <td class="row-actions"><button class="icon-btn" onclick="abrirModalVR('${r.id}')" title="Editar">✎</button><button class="icon-btn del" onclick="excluirVR('${r.id}')" title="Excluir">🗑</button></td>
     </tr>`;
@@ -610,7 +614,7 @@ function renderExtras() {
   const body = document.getElementById('extBody');
   body.innerHTML = filtrados.length ? filtrados.map(r => `<tr>
       <td>${pessoaTag(r.pessoaId)}</td><td>${Fmt.ref(r.ref)}</td><td>${r.tipo}</td>
-      <td style="color:var(--accent);font-weight:600;">${Fmt.brl(r.liquido)}</td><td>${Fmt.brl(r.bruto)}</td>
+      <td style="color:${corMonetaria(r.liquido)};font-weight:600;">${Fmt.brl(r.liquido)}</td><td>${Fmt.brl(r.bruto)}</td>
       <td class="row-actions"><button class="icon-btn" onclick="abrirModalExtra('${r.id}')" title="Editar">✎</button><button class="icon-btn del" onclick="excluirExtra('${r.id}')" title="Excluir">🗑</button></td>
     </tr>`).join('') : '<tr class="empty-row"><td colspan="6">Nenhum lançamento encontrado.</td></tr>';
 
@@ -767,7 +771,7 @@ function renderResumo() {
     const s = fS.filter(r => r.pessoaId === p.id).reduce((s, r) => s + (r.adiantamento || 0) + (r.pagamento || 0), 0);
     const v = fV.filter(r => r.pessoaId === p.id).reduce((s, r) => s + (r.recebido || 0), 0);
     const e = fE.filter(r => r.pessoaId === p.id).reduce((s, r) => s + (r.liquido || 0), 0);
-    return `<tr><td>${pessoaTag(p.id)}</td><td>${Fmt.brl(s)}</td><td>${Fmt.brl(v)}</td><td>${Fmt.brl(e)}</td><td style="font-weight:700;color:var(--accent);">${Fmt.brl(s + v + e)}</td></tr>`;
+    return `<tr><td>${pessoaTag(p.id)}</td><td>${Fmt.brl(s)}</td><td>${Fmt.brl(v)}</td><td>${Fmt.brl(e)}</td><td style="font-weight:700;color:${corMonetaria(s + v + e)};">${Fmt.brl(s + v + e)}</td></tr>`;
   }).join('') || '<tr class="empty-row"><td colspan="5">Nenhuma pessoa cadastrada.</td></tr>';
 
   const categorias = DB.get('categoriasDespesa') || [];
