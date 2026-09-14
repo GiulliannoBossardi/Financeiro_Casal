@@ -82,6 +82,92 @@ const Fmt = {
 };
 
 /* ============================================
+   MÁSCARA DE VALORES (R$) — só números, separa
+   milhares e centavos automaticamente
+============================================ */
+function formatarInputMoeda(e) {
+  const el = e.target;
+  let digits = el.value.replace(/\D/g, '');
+  if (!digits) { el.value = ''; return; }
+  digits = digits.replace(/^0+(?=\d)/, '');
+  while (digits.length < 3) digits = '0' + digits;
+  let centavos = digits.slice(-2);
+  let inteiro = digits.slice(0, -2).replace(/^0+(?=\d)/, '');
+  inteiro = inteiro.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+  el.value = inteiro + ',' + centavos;
+}
+function configurarMascarasMoeda() {
+  document.querySelectorAll('.money-input').forEach(el => {
+    el.addEventListener('input', formatarInputMoeda);
+    el.addEventListener('paste', () => setTimeout(() => formatarInputMoeda({ target: el }), 0));
+  });
+}
+
+/* ============================================
+   ORDENAÇÃO DE TABELAS
+============================================ */
+const sortState = {
+  salarios: { col: 'ref', dir: 'desc' },
+  vr: { col: 'ref', dir: 'desc' },
+  extras: { col: 'ref', dir: 'desc' },
+  despesas: { col: 'ref', dir: 'desc' }
+};
+const RENDER_POR_TABELA = {};
+function ordenarTabela(tabela, col, tipo) {
+  const st = sortState[tabela];
+  if (st.col === col) {
+    st.dir = st.dir === 'asc' ? 'desc' : 'asc';
+  } else {
+    st.col = col;
+    st.dir = tipo === 'texto' || tipo === 'data' ? 'asc' : 'desc';
+  }
+  if (RENDER_POR_TABELA[tabela]) RENDER_POR_TABELA[tabela]();
+}
+function aplicarOrdenacao(tabela, lista, getValor) {
+  const st = sortState[tabela];
+  const dir = st.dir === 'asc' ? 1 : -1;
+  return [...lista].sort((a, b) => {
+    let va = getValor(a, st.col);
+    let vb = getValor(b, st.col);
+    if (typeof va === 'string') va = va.toLowerCase();
+    if (typeof vb === 'string') vb = vb.toLowerCase();
+    if (va < vb) return -1 * dir;
+    if (va > vb) return 1 * dir;
+    return 0;
+  });
+}
+function atualizarIconesOrdenacao(tabela) {
+  document.querySelectorAll(`th.sortable[data-tabela="${tabela}"]`).forEach(th => {
+    const icon = th.querySelector('.sort-icon');
+    if (!icon) return;
+    const st = sortState[tabela];
+    icon.textContent = st.col === th.dataset.col ? (st.dir === 'asc' ? '▲' : '▼') : '⇅';
+  });
+}
+function configurarOrdenacaoTabelas() {
+  document.querySelectorAll('th.sortable').forEach(th => {
+    th.addEventListener('click', () => ordenarTabela(th.dataset.tabela, th.dataset.col, th.dataset.tipo));
+  });
+}
+
+/* ============================================
+   FILTRO DE PERÍODO GLOBAL (painel)
+============================================ */
+function dentroDoPeriodo(ref) {
+  const sel = document.getElementById('filtroPeriodoGlobal');
+  const val = sel ? sel.value : 'todos';
+  if (!val || val === 'todos') return true;
+  if (!ref) return false;
+  const meses = parseInt(val, 10);
+  const [y, m] = ref.split('-').map(Number);
+  if (!y || !m) return false;
+  const dataRef = new Date(y, m - 1, 1);
+  const hoje = new Date();
+  const limite = new Date(hoje.getFullYear(), hoje.getMonth() - (meses - 1), 1);
+  return dataRef >= limite;
+}
+
+/* ============================================
    AUTH
 ============================================ */
 let currentUser = null;
@@ -302,8 +388,18 @@ function renderSalarios() {
   populaPessoaSelect('filtroPessoaSal', true);
   const ref = document.getElementById('filtroRefSal').value;
   const pessoaId = document.getElementById('filtroPessoaSal').value;
-  let filtrados = registros.filter(r => (!ref || r.ref === ref) && (!pessoaId || r.pessoaId === pessoaId));
-  filtrados.sort((a, b) => b.ref.localeCompare(a.ref));
+  let filtrados = registros.filter(r => (!ref || r.ref === ref) && (!pessoaId || r.pessoaId === pessoaId) && dentroDoPeriodo(r.ref));
+  filtrados = aplicarOrdenacao('salarios', filtrados, (r, col) => {
+    switch (col) {
+      case 'pessoa': return pessoaNome(r.pessoaId);
+      case 'adiantamento': return r.adiantamento || 0;
+      case 'pagamento': return r.pagamento || 0;
+      case 'liquido': return (r.adiantamento || 0) + (r.pagamento || 0);
+      case 'bruto': return r.bruto || 0;
+      default: return r.ref || '';
+    }
+  });
+  atualizarIconesOrdenacao('salarios');
   document.getElementById('salBadge').textContent = filtrados.length + ' registro' + (filtrados.length === 1 ? '' : 's');
   const body = document.getElementById('salBody');
   body.innerHTML = filtrados.length ? filtrados.map(r => {
@@ -337,6 +433,7 @@ function abrirModalVR(id) {
   if (item) document.getElementById('vr_pessoa').value = item.pessoaId;
   document.getElementById('vr_recebido').value = item ? Fmt.toInput(item.recebido) : '';
   document.getElementById('vr_utilizado').value = item ? Fmt.toInput(item.utilizado) : '';
+  document.getElementById('vr_data').value = item ? (item.data || '') : '';
   document.getElementById('vr_obs').value = item ? (item.obs || '') : '';
   abrirModal('modalVR');
 }
@@ -350,6 +447,7 @@ function salvarVR() {
     ref: lerRef('vr_mes', 'vr_ano'),
     recebido: Fmt.parse(document.getElementById('vr_recebido').value),
     utilizado: Fmt.parse(document.getElementById('vr_utilizado').value),
+    data: document.getElementById('vr_data').value,
     obs: document.getElementById('vr_obs').value.trim()
   };
   let registros = DB.get('valeRefeicao') || [];
@@ -372,19 +470,31 @@ function renderVR() {
   populaPessoaSelect('filtroPessoaVr', true);
   const ref = document.getElementById('filtroRefVr').value;
   const pessoaId = document.getElementById('filtroPessoaVr').value;
-  let filtrados = registros.filter(r => (!ref || r.ref === ref) && (!pessoaId || r.pessoaId === pessoaId));
-  filtrados.sort((a, b) => b.ref.localeCompare(a.ref));
+  let filtrados = registros.filter(r => (!ref || r.ref === ref) && (!pessoaId || r.pessoaId === pessoaId) && dentroDoPeriodo(r.ref));
+  filtrados = aplicarOrdenacao('vr', filtrados, (r, col) => {
+    switch (col) {
+      case 'pessoa': return pessoaNome(r.pessoaId);
+      case 'data': return r.data || '';
+      case 'recebido': return r.recebido || 0;
+      case 'utilizado': return r.utilizado || 0;
+      case 'saldo': return (r.recebido || 0) - (r.utilizado || 0);
+      default: return r.ref || '';
+    }
+  });
+  atualizarIconesOrdenacao('vr');
   document.getElementById('vrBadge').textContent = filtrados.length + ' registro' + (filtrados.length === 1 ? '' : 's');
   const body = document.getElementById('vrBody');
   body.innerHTML = filtrados.length ? filtrados.map(r => {
     const saldo = (r.recebido || 0) - (r.utilizado || 0);
+    const dataFmt = r.data ? new Date(r.data + 'T00:00:00').toLocaleDateString('pt-BR') : '—';
     return `<tr>
-      <td>${pessoaTag(r.pessoaId)}</td><td>${Fmt.ref(r.ref)}</td>
-      <td>${Fmt.brl(r.recebido)}</td><td>${Fmt.brl(r.utilizado)}</td>
+      <td>${pessoaTag(r.pessoaId)}</td><td>${Fmt.ref(r.ref)}</td><td>${dataFmt}</td>
+      <td>${Fmt.brl(r.recebido)}</td><td style="color:var(--danger);font-weight:600;">${Fmt.brl(r.utilizado)}</td>
       <td style="color:var(--accent);font-weight:600;">${Fmt.brl(saldo)}</td>
+      <td>${r.obs ? r.obs : '—'}</td>
       <td class="row-actions"><button class="icon-btn" onclick="abrirModalVR('${r.id}')" title="Editar">✎</button><button class="icon-btn del" onclick="excluirVR('${r.id}')" title="Excluir">🗑</button></td>
     </tr>`;
-  }).join('') : '<tr class="empty-row"><td colspan="6">Nenhum lançamento encontrado.</td></tr>';
+  }).join('') : '<tr class="empty-row"><td colspan="8">Nenhum lançamento encontrado.</td></tr>';
 
   const totalRecebido = filtrados.reduce((s, r) => s + (r.recebido || 0), 0);
   const totalUtilizado = filtrados.reduce((s, r) => s + (r.utilizado || 0), 0);
@@ -442,8 +552,17 @@ function renderExtras() {
   populaPessoaSelect('filtroPessoaExt', true);
   const ref = document.getElementById('filtroRefExt').value;
   const pessoaId = document.getElementById('filtroPessoaExt').value;
-  let filtrados = registros.filter(r => (!ref || r.ref === ref) && (!pessoaId || r.pessoaId === pessoaId));
-  filtrados.sort((a, b) => b.ref.localeCompare(a.ref));
+  let filtrados = registros.filter(r => (!ref || r.ref === ref) && (!pessoaId || r.pessoaId === pessoaId) && dentroDoPeriodo(r.ref));
+  filtrados = aplicarOrdenacao('extras', filtrados, (r, col) => {
+    switch (col) {
+      case 'pessoa': return pessoaNome(r.pessoaId);
+      case 'tipo': return r.tipo || '';
+      case 'liquido': return r.liquido || 0;
+      case 'bruto': return r.bruto || 0;
+      default: return r.ref || '';
+    }
+  });
+  atualizarIconesOrdenacao('extras');
   document.getElementById('extBadge').textContent = filtrados.length + ' registro' + (filtrados.length === 1 ? '' : 's');
   const body = document.getElementById('extBody');
   body.innerHTML = filtrados.length ? filtrados.map(r => `<tr>
@@ -539,8 +658,17 @@ function renderDespesas() {
   const ref = document.getElementById('filtroRefDesp').value;
   const status = document.getElementById('filtroStatusDesp').value;
   const categoria = document.getElementById('filtroCatDesp').value;
-  let filtrados = registros.filter(r => (!ref || r.ref === ref) && (!status || r.status === status) && (!categoria || r.categoria === categoria));
-  filtrados.sort((a, b) => b.ref.localeCompare(a.ref));
+  let filtrados = registros.filter(r => (!ref || r.ref === ref) && (!status || r.status === status) && (!categoria || r.categoria === categoria) && dentroDoPeriodo(r.ref));
+  filtrados = aplicarOrdenacao('despesas', filtrados, (r, col) => {
+    switch (col) {
+      case 'descricao': return r.descricao || '';
+      case 'categoria': return r.categoria || '';
+      case 'valor': return r.valor || 0;
+      case 'status': return r.status || '';
+      default: return r.ref || '';
+    }
+  });
+  atualizarIconesOrdenacao('despesas');
   document.getElementById('despBadge').textContent = filtrados.length + ' registro' + (filtrados.length === 1 ? '' : 's');
   const body = document.getElementById('despBody');
   body.innerHTML = filtrados.length ? filtrados.map(r => `<tr>
@@ -574,10 +702,10 @@ function renderResumo() {
   populaRefFiltro('filtroRefResumo', todasRefs.map(ref => ({ ref })));
   const ref = document.getElementById('filtroRefResumo').value;
 
-  const fS = salarios.filter(r => !ref || r.ref === ref);
-  const fV = vr.filter(r => !ref || r.ref === ref);
-  const fE = extras.filter(r => !ref || r.ref === ref);
-  const fD = despesas.filter(r => !ref || r.ref === ref);
+  const fS = salarios.filter(r => (!ref || r.ref === ref) && dentroDoPeriodo(r.ref));
+  const fV = vr.filter(r => (!ref || r.ref === ref) && dentroDoPeriodo(r.ref));
+  const fE = extras.filter(r => (!ref || r.ref === ref) && dentroDoPeriodo(r.ref));
+  const fD = despesas.filter(r => (!ref || r.ref === ref) && dentroDoPeriodo(r.ref));
 
   const totalSal = fS.reduce((s, r) => s + (r.adiantamento || 0) + (r.pagamento || 0), 0);
   const totalVr = fV.reduce((s, r) => s + (r.recebido || 0), 0);
@@ -689,12 +817,18 @@ function renderAll() {
   renderResumo();
   renderConfiguracao();
 }
+RENDER_POR_TABELA.salarios = renderSalarios;
+RENDER_POR_TABELA.vr = renderVR;
+RENDER_POR_TABELA.extras = renderExtras;
+RENDER_POR_TABELA.despesas = renderDespesas;
 
 /* ============================================
    START
 ============================================ */
 window.addEventListener('DOMContentLoaded', async () => {
   atualizarData();
+  configurarMascarasMoeda();
+  configurarOrdenacaoTabelas();
   initFirebase();
   await DB.loadAll();
   DB.init();

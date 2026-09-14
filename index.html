@@ -63,6 +63,12 @@
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
       </button>
       <div class="topbar-right">
+        <select id="filtroPeriodoGlobal" onchange="renderAll()" style="width:160px;" title="Filtrar período exibido no painel">
+          <option value="todos">Todos os períodos</option>
+          <option value="3">Últimos 3 meses</option>
+          <option value="6">Últimos 6 meses</option>
+          <option value="12">Últimos 12 meses</option>
+        </select>
         <div class="topbar-date" id="topbarDate"></div>
         <div class="avatar-wrap">
           <div class="avatar" id="userAvatar" onclick="toggleUserDropdown()">--</div>
@@ -90,7 +96,13 @@
         <div class="card">
           <div class="card-header"><div class="card-title">Lançamentos de Salário</div><div class="flex-gap"><span class="card-badge" id="salBadge">0 registros</span><button class="btn btn-primary btn-sm" onclick="abrirModalSalario()">+ Novo</button></div></div>
           <div class="table-wrap"><table><thead><tr>
-            <th>Pessoa</th><th>Referência</th><th>Adiantamento</th><th>Pagamento</th><th>Líquido</th><th>Bruto</th><th class="no-sort">Ações</th>
+            <th class="sortable" data-tabela="salarios" data-col="pessoa" data-tipo="texto">Pessoa <span class="sort-icon">⇅</span></th>
+            <th class="sortable" data-tabela="salarios" data-col="ref" data-tipo="data">Referência <span class="sort-icon">⇅</span></th>
+            <th class="sortable" data-tabela="salarios" data-col="adiantamento" data-tipo="valor">Adiantamento <span class="sort-icon">⇅</span></th>
+            <th class="sortable" data-tabela="salarios" data-col="pagamento" data-tipo="valor">Pagamento <span class="sort-icon">⇅</span></th>
+            <th class="sortable" data-tabela="salarios" data-col="liquido" data-tipo="valor">Líquido <span class="sort-icon">⇅</span></th>
+            <th class="sortable" data-tabela="salarios" data-col="bruto" data-tipo="valor">Bruto <span class="sort-icon">⇅</span></th>
+            <th class="no-sort">Ações</th>
           </tr></thead><tbody id="salBody"></tbody></table></div>
         </div>
       </div>
@@ -107,7 +119,14 @@
         <div class="card">
           <div class="card-header"><div class="card-title">Vale Refeição</div><div class="flex-gap"><span class="card-badge" id="vrBadge">0 registros</span><button class="btn btn-primary btn-sm" onclick="abrirModalVR()">+ Novo</button></div></div>
           <div class="table-wrap"><table><thead><tr>
-            <th>Pessoa</th><th>Referência</th><th>Valor Recebido</th><th>Valor Utilizado</th><th>Saldo</th><th class="no-sort">Ações</th>
+            <th class="sortable" data-tabela="vr" data-col="pessoa" data-tipo="texto">Pessoa <span class="sort-icon">⇅</span></th>
+            <th class="sortable" data-tabela="vr" data-col="ref" data-tipo="data">Referência <span class="sort-icon">⇅</span></th>
+            <th class="sortable" data-tabela="vr" data-col="data" data-tipo="data">Data <span class="sort-icon">⇅</span></th>
+            <th class="sortable" data-tabela="vr" data-col="recebido" data-tipo="valor">Valor Recebido <span class="sort-icon">⇅</span></th>
+            <th class="sortable" data-tabela="vr" data-col="utilizado" data-tipo="valor">Valor Utilizado <span class="sort-icon">⇅</span></th>
+            <th class="sortable" data-tabela="vr" data-col="saldo" data-tipo="valor">Saldo <span class="sort-icon">⇅</span></th>
+            <th class="no-sort">Observação</th>
+            <th class="no-sort">Ações</th>
           </tr></thead><tbody id="vrBody"></tbody></table></div>
         </div>
       </div>
@@ -124,7 +143,12 @@
         <div class="card">
           <div class="card-header"><div class="card-title">Ganhos Extras</div><div class="flex-gap"><span class="card-badge" id="extBadge">0 registros</span><button class="btn btn-primary btn-sm" onclick="abrirModalExtra()">+ Novo</button></div></div>
           <div class="table-wrap"><table><thead><tr>
-            <th>Pessoa</th><th>Referência</th><th>Tipo</th><th>Líquido</th><th>Bruto</th><th class="no-sort">Ações</th>
+            <th class="sortable" data-tabela="extras" data-col="pessoa" data-tipo="texto">Pessoa <span class="sort-icon">⇅</span></th>
+            <th class="sortable" data-tabela="extras" data-col="ref" data-tipo="data">Referência <span class="sort-icon">⇅</span></th>
+            <th class="sortable" data-tabela="extras" data-col="tipo" data-tipo="texto">Tipo <span class="sort-icon">⇅</span></th>
+            <th class="sortable" data-tabela="extras" data-col="liquido" data-tipo="valor">Líquido <span class="sort-icon">⇅</span></th>
+            <th class="sortable" data-tabela="extras" data-col="bruto" data-tipo="valor">Bruto <span class="sort-icon">⇅</span></th>
+            <th class="no-sort">Ações</th>
           </tr></thead><tbody id="extBody"></tbody></table></div>
         </div>
       </div>
@@ -143,7 +167,13 @@
         <div class="card">
           <div class="card-header"><div class="card-title">Despesas do Casal</div><div class="flex-gap"><span class="card-badge" id="despBadge">0 registros</span><button class="btn btn-primary btn-sm" onclick="abrirModalDespesa()">+ Nova</button></div></div>
           <div class="table-wrap"><table><thead><tr>
-            <th>Descrição</th><th>Categoria</th><th>Referência</th><th>Parcela</th><th>Valor</th><th>Status</th><th class="no-sort">Ações</th>
+            <th class="sortable" data-tabela="despesas" data-col="descricao" data-tipo="texto">Descrição <span class="sort-icon">⇅</span></th>
+            <th class="sortable" data-tabela="despesas" data-col="categoria" data-tipo="texto">Categoria <span class="sort-icon">⇅</span></th>
+            <th class="sortable" data-tabela="despesas" data-col="ref" data-tipo="data">Referência <span class="sort-icon">⇅</span></th>
+            <th class="no-sort">Parcela</th>
+            <th class="sortable" data-tabela="despesas" data-col="valor" data-tipo="valor">Valor <span class="sort-icon">⇅</span></th>
+            <th class="sortable" data-tabela="despesas" data-col="status" data-tipo="texto">Status <span class="sort-icon">⇅</span></th>
+            <th class="no-sort">Ações</th>
           </tr></thead><tbody id="despBody"></tbody></table></div>
         </div>
       </div>
@@ -203,8 +233,8 @@
     <input type="hidden" id="sal_id"/>
     <div class="form-row full"><div><label>Pessoa</label><select id="sal_pessoa" class="pessoa-select"></select></div></div>
     <div class="form-row"><div><label>Mês</label><select id="sal_mes"></select></div><div><label>Ano</label><select id="sal_ano"></select></div></div>
-    <div class="form-row"><div><label>Adiantamento (R$)</label><input type="text" id="sal_adiantamento" placeholder="0,00"/></div><div><label>Pagamento (R$)</label><input type="text" id="sal_pagamento" placeholder="0,00"/></div></div>
-    <div class="form-row full"><div><label>Salário Bruto (R$)</label><input type="text" id="sal_bruto" placeholder="0,00"/></div></div>
+    <div class="form-row"><div><label>Adiantamento (R$)</label><input type="text" inputmode="decimal" class="money-input" id="sal_adiantamento" placeholder="0,00"/></div><div><label>Pagamento (R$)</label><input type="text" inputmode="decimal" class="money-input" id="sal_pagamento" placeholder="0,00"/></div></div>
+    <div class="form-row full"><div><label>Salário Bruto (R$)</label><input type="text" inputmode="decimal" class="money-input" id="sal_bruto" placeholder="0,00"/></div></div>
   </div>
   <div class="modal-footer"><button class="btn" onclick="fecharModal('modalSalario')">Cancelar</button><button class="btn btn-primary" onclick="salvarSalario()">Salvar</button></div>
 </div></div>
@@ -215,7 +245,8 @@
     <input type="hidden" id="vr_id"/>
     <div class="form-row full"><div><label>Pessoa</label><select id="vr_pessoa" class="pessoa-select"></select></div></div>
     <div class="form-row"><div><label>Mês</label><select id="vr_mes"></select></div><div><label>Ano</label><select id="vr_ano"></select></div></div>
-    <div class="form-row"><div><label>Valor Recebido (R$)</label><input type="text" id="vr_recebido" placeholder="0,00"/></div><div><label>Valor Utilizado (R$)</label><input type="text" id="vr_utilizado" placeholder="0,00"/></div></div>
+    <div class="form-row"><div><label>Valor Recebido (R$)</label><input type="text" inputmode="decimal" class="money-input" id="vr_recebido" placeholder="0,00"/></div><div><label>Valor Utilizado (R$)</label><input type="text" inputmode="decimal" class="money-input" id="vr_utilizado" placeholder="0,00"/></div></div>
+    <div class="form-row full"><div><label>Data</label><input type="date" id="vr_data"/></div></div>
     <div class="form-row full"><div><label>Observação</label><input type="text" id="vr_obs" placeholder="Opcional"/></div></div>
   </div>
   <div class="modal-footer"><button class="btn" onclick="fecharModal('modalVR')">Cancelar</button><button class="btn btn-primary" onclick="salvarVR()">Salvar</button></div>
@@ -228,7 +259,7 @@
     <div class="form-row full"><div><label>Pessoa</label><select id="ext_pessoa" class="pessoa-select"></select></div></div>
     <div class="form-row"><div><label>Mês</label><select id="ext_mes"></select></div><div><label>Ano</label><select id="ext_ano"></select></div></div>
     <div class="form-row full"><div><label>Tipo</label><select id="ext_tipo"></select></div></div>
-    <div class="form-row"><div><label>Valor Líquido (R$)</label><input type="text" id="ext_liquido" placeholder="0,00"/></div><div><label>Valor Bruto (R$)</label><input type="text" id="ext_bruto" placeholder="0,00"/></div></div>
+    <div class="form-row"><div><label>Valor Líquido (R$)</label><input type="text" inputmode="decimal" class="money-input" id="ext_liquido" placeholder="0,00"/></div><div><label>Valor Bruto (R$)</label><input type="text" inputmode="decimal" class="money-input" id="ext_bruto" placeholder="0,00"/></div></div>
   </div>
   <div class="modal-footer"><button class="btn" onclick="fecharModal('modalExtra')">Cancelar</button><button class="btn btn-primary" onclick="salvarExtra()">Salvar</button></div>
 </div></div>
@@ -238,7 +269,7 @@
   <div class="modal-body">
     <input type="hidden" id="desp_id"/>
     <div class="form-row full"><div><label>Descrição</label><input type="text" id="desp_descricao" placeholder="Ex: Aluguel, Supermercado..."/></div></div>
-    <div class="form-row"><div><label>Categoria</label><select id="desp_categoria"></select></div><div><label>Valor (R$)</label><input type="text" id="desp_valor" placeholder="0,00"/></div></div>
+    <div class="form-row"><div><label>Categoria</label><select id="desp_categoria"></select></div><div><label>Valor (R$)</label><input type="text" inputmode="decimal" class="money-input" id="desp_valor" placeholder="0,00"/></div></div>
     <div class="form-row"><div><label>Mês</label><select id="desp_mes"></select></div><div><label>Ano</label><select id="desp_ano"></select></div></div>
     <div class="form-row"><div><label>Tipo</label><select id="desp_tipo" onchange="onDespesaTipoChange()"><option value="avista">À vista</option><option value="parcelada">Parcelada</option></select></div><div id="desp_parcelas_wrap" style="display:none;"><label>Total de Parcelas</label><input type="number" id="desp_parcelas" min="2" value="2"/></div></div>
     <div class="form-row full"><div><label>Status</label><select id="desp_status"><option value="pendente">Pendente</option><option value="pago">Pago</option></select></div></div>
