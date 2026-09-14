@@ -236,8 +236,12 @@ function fazerLogin() {
     document.getElementById('loginError').classList.add('show');
     return;
   }
+  entrarComoPessoa(pessoa);
+}
+
+function entrarComoPessoa(pessoa) {
   currentUser = pessoa;
-  sessionStorage.setItem('painelCasal_uid', pessoa.id);
+  localStorage.setItem('painelCasal_uid', pessoa.id);
   document.getElementById('loginScreen').classList.add('hidden');
   document.getElementById('appWrapper').classList.remove('hidden');
   aplicarCorTema(pessoa.cor);
@@ -245,9 +249,18 @@ function fazerLogin() {
   renderAll();
 }
 
+function tentarRestaurarSessao() {
+  const uid = localStorage.getItem('painelCasal_uid');
+  if (!uid) return false;
+  const pessoa = (DB.get('pessoas') || []).find(p => p.id === uid);
+  if (!pessoa) { localStorage.removeItem('painelCasal_uid'); return false; }
+  entrarComoPessoa(pessoa);
+  return true;
+}
+
 function fazerLogout() {
   currentUser = null;
-  sessionStorage.removeItem('painelCasal_uid');
+  localStorage.removeItem('painelCasal_uid');
   document.getElementById('loginPass').value = '';
   selectedLoginId = null;
   document.getElementById('appWrapper').classList.add('hidden');
@@ -511,12 +524,41 @@ function excluirVR(id) {
   renderVR(); renderResumo();
   toast('Registro excluído.');
 }
+/* ============================================
+   VALE REFEIÇÃO — saldo acumulado
+   O saldo de cada lançamento é o saldo anterior
+   da mesma pessoa + recebido - utilizado, em
+   ordem cronológica (por data, com fallback na
+   referência mês/ano).
+============================================ */
+function chaveCronologicaVR(r) {
+  return r.data ? r.data : (r.ref || '0000-00') + '-01';
+}
+function calcularSaldosAcumuladosVR(registros) {
+  const ordenados = [...registros].sort((a, b) => {
+    const ka = chaveCronologicaVR(a), kb = chaveCronologicaVR(b);
+    if (ka !== kb) return ka < kb ? -1 : 1;
+    return (a.id || '').localeCompare(b.id || '');
+  });
+  const acumuladoPorPessoa = {};
+  const saldoPorId = {};
+  ordenados.forEach(r => {
+    const acumulado = (acumuladoPorPessoa[r.pessoaId] || 0) + (r.recebido || 0) - (r.utilizado || 0);
+    acumuladoPorPessoa[r.pessoaId] = acumulado;
+    saldoPorId[r.id] = acumulado;
+  });
+  return { saldoPorId, acumuladoPorPessoa };
+}
+
 function renderVR() {
   const registros = DB.get('valeRefeicao') || [];
   populaRefFiltro('filtroRefVr', registros);
   populaPessoaSelect('filtroPessoaVr', true);
   const ref = document.getElementById('filtroRefVr').value;
   const pessoaId = document.getElementById('filtroPessoaVr').value;
+
+  const { saldoPorId, acumuladoPorPessoa } = calcularSaldosAcumuladosVR(registros);
+
   let filtrados = registros.filter(r => (!ref || r.ref === ref) && (!pessoaId || r.pessoaId === pessoaId) && dentroDoPeriodo(r.ref));
   filtrados = aplicarOrdenacao('vr', filtrados, (r, col) => {
     switch (col) {
@@ -524,7 +566,7 @@ function renderVR() {
       case 'data': return r.data || '';
       case 'recebido': return r.recebido || 0;
       case 'utilizado': return r.utilizado || 0;
-      case 'saldo': return (r.recebido || 0) - (r.utilizado || 0);
+      case 'saldo': return saldoPorId[r.id] ?? 0;
       default: return r.ref || '';
     }
   });
@@ -532,7 +574,7 @@ function renderVR() {
   document.getElementById('vrBadge').textContent = filtrados.length + ' registro' + (filtrados.length === 1 ? '' : 's');
   const body = document.getElementById('vrBody');
   body.innerHTML = filtrados.length ? filtrados.map(r => {
-    const saldo = (r.recebido || 0) - (r.utilizado || 0);
+    const saldo = saldoPorId[r.id] ?? ((r.recebido || 0) - (r.utilizado || 0));
     const dataFmt = r.data ? new Date(r.data + 'T00:00:00').toLocaleDateString('pt-BR') : '—';
     return `<tr>
       <td>${pessoaTag(r.pessoaId)}</td><td>${Fmt.ref(r.ref)}</td><td>${dataFmt}</td>
@@ -545,10 +587,11 @@ function renderVR() {
 
   const totalRecebido = filtrados.reduce((s, r) => s + (r.recebido || 0), 0);
   const totalUtilizado = filtrados.reduce((s, r) => s + (r.utilizado || 0), 0);
+  const saldoAtualGeral = Object.values(acumuladoPorPessoa).reduce((s, v) => s + v, 0);
   document.getElementById('statsVR').innerHTML = `
     <div class="stat-card green"><div class="stat-label">Total Recebido</div><div class="stat-value income">${Fmt.brl(totalRecebido)}</div><div class="stat-sub">Somado no período</div></div>
     <div class="stat-card warn"><div class="stat-label">Total Utilizado</div><div class="stat-value neutral">${Fmt.brl(totalUtilizado)}</div><div class="stat-sub">Consumo no período</div></div>
-    <div class="stat-card blue"><div class="stat-label">Saldo</div><div class="stat-value neutral">${Fmt.brl(totalRecebido - totalUtilizado)}</div><div class="stat-sub">Recebido − Utilizado</div></div>`;
+    <div class="stat-card blue"><div class="stat-label">Saldo Atual</div><div class="stat-value neutral">${Fmt.brl(saldoAtualGeral)}</div><div class="stat-sub">Acumulado de todas as pessoas</div></div>`;
 }
 
 /* ============================================
@@ -916,6 +959,7 @@ window.addEventListener('DOMContentLoaded', async () => {
   }
 
   renderLoginPeople();
+  tentarRestaurarSessao();
 
   DB.listenAll(() => {
     if (document.getElementById('appWrapper').classList.contains('hidden')) return;
