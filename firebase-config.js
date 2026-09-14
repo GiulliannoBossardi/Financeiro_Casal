@@ -23,10 +23,10 @@
 ════════════════════════════════════════════ */
 
 const firebaseConfig = {
-  apiKey: "AIzaSyBboODI6OWY-MkzeM2acgcXCu33_pGt5Ro",
-  authDomain: "painel-financeiro-316bc.firebaseapp.com",
-  projectId: "painel-financeiro-316bc",
-  storageBucket: "painel-financeiro-316bc.firebasestorage.app",
-  messagingSenderId: "237593887820",
-  appId: "1:237593887820:web:22071fd05bfee8822260e9"
+  apiKey: "AIzaSyBxsLKGGvkLysCl6aed1UZbrXPk9K5TT2k",
+  authDomain: "controle-financeiro-9e09b.firebaseapp.com",
+  projectId: "controle-financeiro-9e09b",
+  storageBucket: "controle-financeiro-9e09b.firebasestorage.app",
+  messagingSenderId: "238867772198",
+  appId: "1:238867772198:web:3a1d98ca48924c2f62c7e7"
 };
