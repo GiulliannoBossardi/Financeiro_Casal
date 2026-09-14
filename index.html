@@ -278,14 +278,15 @@
 </div></div>
 
 <div class="modal-overlay" id="modalPessoa"><div class="modal">
-  <div class="modal-header"><div class="modal-title">Nova Pessoa</div><button class="modal-close" onclick="fecharModal('modalPessoa')">✕</button></div>
+  <div class="modal-header"><div class="modal-title" id="tituloModalPessoa">Nova Pessoa</div><button class="modal-close" onclick="fecharModalPessoa()">✕</button></div>
   <div class="modal-body">
+    <input type="hidden" id="pes_id"/>
     <div class="form-row full"><div><label>Nome</label><input type="text" id="pes_nome" placeholder="Ex: Ana"/></div></div>
     <div class="form-row full"><div><label>Login</label><input type="text" id="pes_login" placeholder="Ex: ana"/></div></div>
-    <div class="form-row full"><div><label>Senha</label><input type="text" id="pes_senha" placeholder="Senha inicial"/></div></div>
-    <div class="form-row full"><div><label>Cor</label><input type="color" id="pes_cor" value="#3ddc84" style="width:100%;height:38px;padding:2px;"/></div></div>
+    <div class="form-row full"><div><label>Senha</label><input type="text" id="pes_senha" placeholder="Senha inicial"/><div id="pes_senha_hint" class="hidden" style="font-size:.7rem;color:var(--text3);margin-top:4px;">Deixe em branco para manter a senha atual.</div></div></div>
+    <div class="form-row full"><div><label>Cor</label><input type="color" id="pes_cor" value="#3ddc84" oninput="previewCorPessoa(this.value)" style="width:100%;height:38px;padding:2px;"/></div></div>
   </div>
-  <div class="modal-footer"><button class="btn" onclick="fecharModal('modalPessoa')">Cancelar</button><button class="btn btn-primary" onclick="salvarPessoa()">Salvar</button></div>
+  <div class="modal-footer"><button class="btn" onclick="fecharModalPessoa()">Cancelar</button><button class="btn btn-primary" onclick="salvarPessoa()">Salvar</button></div>
 </div></div>
 
 <div class="modal-overlay" id="modalSenha"><div class="modal">

@@ -168,6 +168,39 @@ function dentroDoPeriodo(ref) {
 }
 
 /* ============================================
+   TEMA DE COR DINÂMICO — segue a cor da pessoa
+============================================ */
+function hexParaRgb(hex) {
+  let c = (hex || '').replace('#', '');
+  if (c.length === 3) c = c.split('').map(ch => ch + ch).join('');
+  const num = parseInt(c, 16);
+  return { r: (num >> 16) & 255, g: (num >> 8) & 255, b: num & 255 };
+}
+function ajustarCor(hex, percent) {
+  const { r, g, b } = hexParaRgb(hex);
+  const ajusta = v => Math.min(255, Math.max(0, Math.round(v + 255 * percent)));
+  return '#' + [ajusta(r), ajusta(g), ajusta(b)].map(v => v.toString(16).padStart(2, '0')).join('');
+}
+function corDeContraste(hex) {
+  const { r, g, b } = hexParaRgb(hex);
+  const luminancia = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+  return luminancia > 0.6 ? '#0d1a13' : '#ffffff';
+}
+function aplicarCorTema(hex) {
+  if (!hex || !/^#?[0-9a-fA-F]{3,6}$/.test(hex)) return;
+  const { r, g, b } = hexParaRgb(hex);
+  const root = document.documentElement.style;
+  root.setProperty('--accent', hex);
+  root.setProperty('--accent2', ajustarCor(hex, -0.16));
+  root.setProperty('--accent-text', corDeContraste(hex));
+  root.setProperty('--accent-rgb', `${r},${g},${b}`);
+}
+function limparCorTema() {
+  const root = document.documentElement.style;
+  ['--accent', '--accent2', '--accent-text', '--accent-rgb'].forEach(v => root.removeProperty(v));
+}
+
+/* ============================================
    AUTH
 ============================================ */
 let currentUser = null;
@@ -182,7 +215,14 @@ function renderLoginPeople() {
       <div class="nm">${p.nome}</div>
     </div>`).join('');
 }
-function selecionarPessoaLogin(id) { selectedLoginId = id; renderLoginPeople(); document.getElementById('loginError').classList.remove('show'); }
+function selecionarPessoaLogin(id) {
+  selectedLoginId = id;
+  renderLoginPeople();
+  document.getElementById('loginError').classList.remove('show');
+  const pessoas = DB.get('pessoas') || [];
+  const p = pessoas.find(p => p.id === id);
+  if (p) aplicarCorTema(p.cor);
+}
 
 function fazerLogin() {
   const pessoas = DB.get('pessoas') || [];
@@ -196,6 +236,7 @@ function fazerLogin() {
   sessionStorage.setItem('painelCasal_uid', pessoa.id);
   document.getElementById('loginScreen').classList.add('hidden');
   document.getElementById('appWrapper').classList.remove('hidden');
+  aplicarCorTema(pessoa.cor);
   atualizarTopoUsuario();
   renderAll();
 }
@@ -207,6 +248,7 @@ function fazerLogout() {
   selectedLoginId = null;
   document.getElementById('appWrapper').classList.add('hidden');
   document.getElementById('loginScreen').classList.remove('hidden');
+  limparCorTema();
   renderLoginPeople();
 }
 
@@ -215,6 +257,7 @@ function atualizarTopoUsuario() {
   const avatar = document.getElementById('userAvatar');
   avatar.textContent = currentUser.nome.slice(0, 2).toUpperCase();
   avatar.style.background = currentUser.cor;
+  avatar.style.color = corDeContraste(currentUser.cor);
   document.getElementById('dropdownName').textContent = currentUser.nome;
 }
 
@@ -742,23 +785,51 @@ function renderResumo() {
 /* ============================================
    CONFIGURAÇÃO — pessoas, categorias, tipos de extra
 ============================================ */
-function abrirModalPessoa() {
-  document.getElementById('pes_nome').value = '';
-  document.getElementById('pes_login').value = '';
+function previewCorPessoa(hex) {
+  const id = document.getElementById('pes_id').value;
+  if (currentUser && id === currentUser.id) aplicarCorTema(hex);
+}
+function fecharModalPessoa() {
+  fecharModal('modalPessoa');
+  if (currentUser) aplicarCorTema(currentUser.cor);
+}
+function abrirModalPessoa(id) {
+  const pessoas = DB.get('pessoas') || [];
+  const item = pessoas.find(p => p.id === id);
+  document.getElementById('tituloModalPessoa').textContent = item ? 'Editar Pessoa' : 'Nova Pessoa';
+  document.getElementById('pes_id').value = id || '';
+  document.getElementById('pes_nome').value = item ? item.nome : '';
+  document.getElementById('pes_login').value = item ? item.login : '';
   document.getElementById('pes_senha').value = '';
-  document.getElementById('pes_cor').value = '#3ddc84';
+  document.getElementById('pes_senha').placeholder = item ? '••••••••' : 'Senha inicial';
+  document.getElementById('pes_senha_hint').classList.toggle('hidden', !item);
+  document.getElementById('pes_cor').value = item ? item.cor : '#3ddc84';
   abrirModal('modalPessoa');
 }
 function salvarPessoa() {
+  const id = document.getElementById('pes_id').value;
   const nome = document.getElementById('pes_nome').value.trim();
   const login = document.getElementById('pes_login').value.trim();
   const senha = document.getElementById('pes_senha').value.trim();
-  if (!nome || !login || !senha) { toast('Preencha todos os campos.', 'error'); return; }
+  const cor = document.getElementById('pes_cor').value;
+  if (!nome || !login || (!id && !senha)) { toast('Preencha todos os campos.', 'error'); return; }
   const pessoas = DB.get('pessoas') || [];
-  pessoas.push({ id: Fmt.uid(), nome, login, senha, cor: document.getElementById('pes_cor').value });
+  if (id) {
+    const idx = pessoas.findIndex(p => p.id === id);
+    if (idx === -1) return;
+    pessoas[idx] = { ...pessoas[idx], nome, login, cor, senha: senha || pessoas[idx].senha };
+    if (currentUser && currentUser.id === id) {
+      currentUser = pessoas[idx];
+      atualizarTopoUsuario();
+      aplicarCorTema(cor);
+    }
+    toast('Pessoa atualizada.');
+  } else {
+    pessoas.push({ id: Fmt.uid(), nome, login, senha, cor });
+    toast('Pessoa adicionada.');
+  }
   DB.set('pessoas', pessoas);
   fecharModal('modalPessoa');
-  toast('Pessoa adicionada.');
   renderConfiguracao(); renderLoginPeople();
 }
 function excluirPessoa(id) {
@@ -772,7 +843,7 @@ function renderConfiguracao() {
   document.getElementById('pessoasLista').innerHTML = pessoas.map(p => `
     <div class="people-card">
       <div class="who"><span class="dot" style="background:${p.cor}"></span><div><strong>${p.nome}</strong><div style="font-size:.72rem;color:var(--text2);">login: ${p.login}</div></div></div>
-      <button class="icon-btn del" onclick="excluirPessoa('${p.id}')" title="Remover">🗑</button>
+      <div class="row-actions"><button class="icon-btn" onclick="abrirModalPessoa('${p.id}')" title="Editar">✎</button><button class="icon-btn del" onclick="excluirPessoa('${p.id}')" title="Remover">🗑</button></div>
     </div>`).join('') || '<div style="color:var(--text2);">Nenhuma pessoa cadastrada.</div>';
 
   const cats = DB.get('categoriasDespesa') || [];
