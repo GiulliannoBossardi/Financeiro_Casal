@@ -673,7 +673,31 @@ function renderExtras() {
    DESPESAS
 ============================================ */
 function onDespesaTipoChange() {
-  document.getElementById('desp_parcelas_wrap').style.display = document.getElementById('desp_tipo').value === 'parcelada' ? 'block' : 'none';
+  const tipo = document.getElementById('desp_tipo').value;
+  const wrap = document.getElementById('desp_parcelas_wrap');
+  const label = document.getElementById('desp_parcelas_label');
+  const hint = document.getElementById('desp_valor_hint');
+  const valorLabel = document.getElementById('desp_valor_label');
+  const parcelasInput = document.getElementById('desp_parcelas');
+  if (tipo === 'parcelada') {
+    wrap.style.display = 'block';
+    label.textContent = 'Total de Parcelas';
+    parcelasInput.min = 2;
+    if (!parcelasInput.value || +parcelasInput.value < 2) parcelasInput.value = 2;
+    hint.style.display = 'none';
+    valorLabel.textContent = 'Valor (R$)';
+  } else if (tipo === 'recorrente') {
+    wrap.style.display = 'block';
+    label.textContent = 'Gerar quantos meses';
+    parcelasInput.min = 1;
+    if (!parcelasInput.value || +parcelasInput.value < 1) parcelasInput.value = 12;
+    hint.style.display = 'block';
+    valorLabel.textContent = 'Valor Previsto (R$)';
+  } else {
+    wrap.style.display = 'none';
+    hint.style.display = 'none';
+    valorLabel.textContent = 'Valor (R$)';
+  }
 }
 function abrirModalDespesa(id) {
   populaCategoriaSelect('desp_categoria', false);
@@ -689,8 +713,10 @@ function abrirModalDespesa(id) {
   document.getElementById('desp_parcelas').value = item ? (item.totalParcelas || 2) : 2;
   document.getElementById('desp_status').value = item ? item.status : 'pendente';
   onDespesaTipoChange();
-  // ao editar uma parcela já gerada, não permite mudar a quantidade de parcelas
-  document.getElementById('desp_tipo').disabled = !!item && item.tipo === 'parcelada';
+  // ao editar uma ocorrência já gerada (parcela ou recorrência), não permite mudar tipo/quantidade —
+  // só descrição, categoria, valor daquele mês específico e status
+  document.getElementById('desp_tipo').disabled = !!item && (item.tipo === 'parcelada' || item.tipo === 'recorrente');
+  if (item) document.getElementById('desp_parcelas_wrap').style.display = 'none';
   abrirModal('modalDespesa');
 }
 function salvarDespesa() {
@@ -722,6 +748,20 @@ function salvarDespesa() {
     }
     DB.set('despesas', registros);
     toast('Despesa parcelada em ' + totalParcelas + 'x criada.');
+  } else if (tipo === 'recorrente') {
+    const totalMeses = Math.max(1, parseInt(document.getElementById('desp_parcelas').value) || 12);
+    const grupoId = Fmt.uid();
+    const [anoBase, mesBase] = refBase.split('-').map(Number);
+    for (let i = 0; i < totalMeses; i++) {
+      const d = new Date(anoBase, mesBase - 1 + i, 1);
+      const ref = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
+      registros.push({
+        id: Fmt.uid(), descricao, categoria, valor, valorPrevisto: valor, ref, tipo, status,
+        recorrenteId: grupoId
+      });
+    }
+    DB.set('despesas', registros);
+    toast('Despesa recorrente gerada para ' + totalMeses + ' meses. Você pode editar o valor de cada mês individualmente.');
   } else {
     registros.push({ id: Fmt.uid(), descricao, categoria, valor, ref: refBase, tipo, status });
     DB.set('despesas', registros);
@@ -763,7 +803,7 @@ function renderDespesas() {
   const body = document.getElementById('despBody');
   body.innerHTML = filtrados.length ? filtrados.map(r => `<tr>
       <td>${r.descricao}</td><td>${r.categoria || '—'}</td><td>${Fmt.ref(r.ref)}</td>
-      <td>${r.tipo === 'parcelada' ? r.parcelaAtual + '/' + r.totalParcelas : 'À vista'}</td>
+      <td>${r.tipo === 'parcelada' ? r.parcelaAtual + '/' + r.totalParcelas : (r.tipo === 'recorrente' ? '🔁 Recorrente' : 'À vista')}</td>
       <td>${Fmt.brl(r.valor)}</td>
       <td><span class="pill ${r.status === 'pago' ? 'ok' : 'pend'}" style="cursor:pointer;" onclick="alternarStatusDespesa('${r.id}')">${r.status === 'pago' ? 'Pago' : 'Pendente'}</span></td>
       <td class="row-actions"><button class="icon-btn" onclick="abrirModalDespesa('${r.id}')" title="Editar">✎</button><button class="icon-btn del" onclick="excluirDespesa('${r.id}')" title="Excluir">🗑</button></td>
@@ -776,6 +816,47 @@ function renderDespesas() {
     <div class="stat-card danger"><div class="stat-label">Total de Despesas</div><div class="stat-value expense">${Fmt.brl(totalGeral)}</div><div class="stat-sub">Somado no período</div></div>
     <div class="stat-card green"><div class="stat-label">Já Pago</div><div class="stat-value income">${Fmt.brl(totalPago)}</div><div class="stat-sub">Quitado no período</div></div>
     <div class="stat-card warn"><div class="stat-label">Pendente</div><div class="stat-value neutral">${Fmt.brl(totalPendente)}</div><div class="stat-sub">A pagar no período</div></div>`;
+}
+
+function renovarRecorrentes() {
+  // Para cada despesa recorrente, garante que sempre existam pelo menos
+  // 12 meses gerados à frente do mês atual. Usa a descrição/categoria/valor
+  // previsto da última ocorrência de cada grupo como modelo para as novas.
+  const registros = DB.get('despesas') || [];
+  const ultimaPorGrupo = {};
+  registros.forEach(r => {
+    if (r.tipo === 'recorrente' && r.recorrenteId) {
+      if (!ultimaPorGrupo[r.recorrenteId] || r.ref > ultimaPorGrupo[r.recorrenteId].ref) {
+        ultimaPorGrupo[r.recorrenteId] = r;
+      }
+    }
+  });
+  const hoje = new Date();
+  const MESES_A_FRENTE = 12;
+  const limiteAlvo = new Date(hoje.getFullYear(), hoje.getMonth() + MESES_A_FRENTE, 1);
+  let novos = [];
+  Object.values(ultimaPorGrupo).forEach(ultimo => {
+    const [anoU, mesU] = ultimo.ref.split('-').map(Number);
+    let i = 1;
+    let d = new Date(anoU, mesU - 1 + i, 1);
+    while (d < limiteAlvo) {
+      const ref = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
+      novos.push({
+        id: Fmt.uid(), descricao: ultimo.descricao, categoria: ultimo.categoria,
+        valor: ultimo.valorPrevisto ?? ultimo.valor, valorPrevisto: ultimo.valorPrevisto ?? ultimo.valor,
+        ref, tipo: 'recorrente', status: 'pendente', recorrenteId: ultimo.recorrenteId
+      });
+      i++;
+      d = new Date(anoU, mesU - 1 + i, 1);
+    }
+  });
+  if (novos.length) {
+    DB.set('despesas', [...registros, ...novos]);
+    renderDespesas(); renderResumo();
+    toast(novos.length + ' mês(es) gerado(s) para despesas recorrentes.');
+  } else {
+    toast('Nenhuma despesa recorrente precisa de renovação agora.');
+  }
 }
 
 /* ============================================

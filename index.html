@@ -165,12 +165,12 @@
         </div>
         <div class="grid-3 mb-20" id="statsDespesas"></div>
         <div class="card">
-          <div class="card-header"><div class="card-title">Despesas do Casal</div><div class="flex-gap"><span class="card-badge" id="despBadge">0 registros</span><button class="btn btn-primary btn-sm" onclick="abrirModalDespesa()">+ Nova</button></div></div>
+          <div class="card-header"><div class="card-title">Despesas do Casal</div><div class="flex-gap"><span class="card-badge" id="despBadge">0 registros</span><button class="btn btn-sm" title="Gera novos meses para as despesas recorrentes que estão perto de acabar" onclick="renovarRecorrentes()">🔁 Renovar Recorrências</button><button class="btn btn-primary btn-sm" onclick="abrirModalDespesa()">+ Nova</button></div></div>
           <div class="table-wrap"><table><thead><tr>
             <th class="sortable" data-tabela="despesas" data-col="descricao" data-tipo="texto">Descrição <span class="sort-icon">⇅</span></th>
             <th class="sortable" data-tabela="despesas" data-col="categoria" data-tipo="texto">Categoria <span class="sort-icon">⇅</span></th>
             <th class="sortable" data-tabela="despesas" data-col="ref" data-tipo="data">Referência <span class="sort-icon">⇅</span></th>
-            <th class="no-sort">Parcela</th>
+            <th class="no-sort">Tipo</th>
             <th class="sortable" data-tabela="despesas" data-col="valor" data-tipo="valor">Valor <span class="sort-icon">⇅</span></th>
             <th class="sortable" data-tabela="despesas" data-col="status" data-tipo="texto">Status <span class="sort-icon">⇅</span></th>
             <th class="no-sort">Ações</th>
@@ -269,9 +269,10 @@
   <div class="modal-body">
     <input type="hidden" id="desp_id"/>
     <div class="form-row full"><div><label>Descrição</label><input type="text" id="desp_descricao" placeholder="Ex: Aluguel, Supermercado..."/></div></div>
-    <div class="form-row"><div><label>Categoria</label><select id="desp_categoria"></select></div><div><label>Valor (R$)</label><input type="text" inputmode="decimal" class="money-input" id="desp_valor" placeholder="0,00"/></div></div>
+    <div class="form-row"><div><label>Categoria</label><select id="desp_categoria"></select></div><div><label id="desp_valor_label">Valor (R$)</label><input type="text" inputmode="decimal" class="money-input" id="desp_valor" placeholder="0,00"/></div></div>
+    <div class="form-row full" id="desp_valor_hint" style="display:none;"><small style="color:var(--text-muted, #888);">Esse valor é o previsto. Cada mês gerado fica independente e você poderá editar o valor exato quando a despesa daquele mês acontecer.</small></div>
     <div class="form-row"><div><label>Mês</label><select id="desp_mes"></select></div><div><label>Ano</label><select id="desp_ano"></select></div></div>
-    <div class="form-row"><div><label>Tipo</label><select id="desp_tipo" onchange="onDespesaTipoChange()"><option value="avista">À vista</option><option value="parcelada">Parcelada</option></select></div><div id="desp_parcelas_wrap" style="display:none;"><label>Total de Parcelas</label><input type="number" id="desp_parcelas" min="2" value="2"/></div></div>
+    <div class="form-row"><div><label>Tipo</label><select id="desp_tipo" onchange="onDespesaTipoChange()"><option value="avista">À vista</option><option value="parcelada">Parcelada</option><option value="recorrente">Recorrente</option></select></div><div id="desp_parcelas_wrap" style="display:none;"><label id="desp_parcelas_label">Total de Parcelas</label><input type="number" id="desp_parcelas" min="2" value="2"/></div></div>
     <div class="form-row full"><div><label>Status</label><select id="desp_status"><option value="pendente">Pendente</option><option value="pago">Pago</option></select></div></div>
   </div>
   <div class="modal-footer"><button class="btn" onclick="fecharModal('modalDespesa')">Cancelar</button><button class="btn btn-primary" onclick="salvarDespesa()">Salvar</button></div>
