@@ -190,8 +190,6 @@
           <label>Mês/Ano:</label><select id="filtroRefDesp" onchange="renderDespesas()" style="width:170px;"><option value="">Todos os períodos</option></select>
           <div class="filter-sep"></div>
           <label>Status:</label><select id="filtroStatusDesp" onchange="renderDespesas()" style="width:130px;"><option value="">Todos</option><option value="pendente">Pendente</option><option value="pago">Pago</option></select>
-          <div class="filter-sep"></div>
-          <label>Divisão:</label><select id="filtroDivisaoDesp" onchange="renderDespesas()" style="width:140px;"><option value="">Todas</option><option value="individual">Individual</option><option value="dividida">Dividida</option></select>
           <button class="filter-clear" onclick="document.getElementById('filtroRefDesp').value='';document.getElementById('filtroStatusDesp').value='';document.getElementById('filtroDivisaoDesp').value='';document.getElementById('filtroCatDesp').value='';document.getElementById('filtroDescDesp').value='';renderDespesas();">✕ Limpar</button>
         </div>
         <div class="grid-3 mb-20" id="statsDespesas"></div>
@@ -208,7 +206,10 @@
             </th>
             <th class="sortable" data-tabela="despesas" data-col="ref" data-tipo="data">Referência <span class="sort-icon">⇅</span></th>
             <th class="no-sort">Tipo</th>
-            <th class="no-sort">Divisão</th>
+            <th class="no-sort th-has-filter">
+              <div class="th-label">Divisão</div>
+              <select id="filtroDivisaoDesp" class="th-filter" onchange="renderDespesas()" onclick="event.stopPropagation()"></select>
+            </th>
             <th class="sortable" data-tabela="despesas" data-col="valor" data-tipo="valor">Valor <span class="sort-icon">⇅</span></th>
             <th class="sortable" data-tabela="despesas" data-col="status" data-tipo="texto">Status <span class="sort-icon">⇅</span></th>
             <th class="no-sort">Ações</th>

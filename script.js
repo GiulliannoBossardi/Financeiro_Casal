@@ -422,6 +422,16 @@ function populaOrigemSelect(selId, registros, includeAll) {
   sel.innerHTML = html;
   if (origens.includes(atual) || (includeAll && atual === '')) sel.value = atual;
 }
+function populaDivisaoSelect(selId) {
+  const pessoas = DB.get('pessoas') || [];
+  const sel = document.getElementById(selId);
+  const atual = sel.value;
+  let html = '<option value="">Todas</option><option value="dividida">Dividida</option>';
+  html += pessoas.map(p => `<option value="${p.id}">${p.nome}</option>`).join('');
+  sel.innerHTML = html;
+  const valores = ['', 'dividida', ...pessoas.map(p => p.id)];
+  if (valores.includes(atual)) sel.value = atual;
+}
 function populaTipoExtraSelect(selId) {
   const tipos = DB.get('tiposExtra') || [];
   document.getElementById(selId).innerHTML = tipos.map(t => `<option value="${t}">${t}</option>`).join('');
@@ -1077,6 +1087,7 @@ function renderDespesas() {
   const registros = DB.get('despesas') || [];
   populaRefFiltro('filtroRefDesp', registros);
   populaCategoriaSelect('filtroCatDesp', true);
+  populaDivisaoSelect('filtroDivisaoDesp');
   const ref = document.getElementById('filtroRefDesp').value;
   const status = document.getElementById('filtroStatusDesp').value;
   const categoria = document.getElementById('filtroCatDesp').value;
@@ -1086,7 +1097,7 @@ function renderDespesas() {
     (!ref || r.ref === ref) &&
     (!status || r.status === status) &&
     (!categoria || r.categoria === categoria) &&
-    (!divisao || r.divisao === divisao) &&
+    (!divisao || (divisao === 'dividida' ? r.divisao === 'dividida' : (r.divisao === 'individual' && r.pessoaId === divisao))) &&
     (!descricaoBusca || normalizarTexto(r.descricao).includes(descricaoBusca)) &&
     dentroDoPeriodo(r.ref));
   filtrados = aplicarOrdenacao('despesas', filtrados, (r, col) => {
@@ -1118,13 +1129,16 @@ function renderDespesas() {
     <div class="stat-card green"><div class="stat-label">Já Pago</div><div class="stat-value income">${Fmt.brl(totalPago)}</div><div class="stat-sub">Quitado no período</div></div>
     <div class="stat-card warn"><div class="stat-label">Pendente</div><div class="stat-value neutral">${Fmt.brl(totalPendente)}</div><div class="stat-sub">A pagar no período</div></div>`;
 
-  if (divisao === 'dividida') {
-    const pessoasCasal = DB.get('pessoas') || [];
-    const n = Math.max(1, pessoasCasal.length);
-    const porPessoa = totalGeral / n;
-    statsHtml += pessoasCasal.map(p => `
-    <div class="stat-card blue"><div class="stat-label">Parte de ${p.nome}</div><div class="stat-value neutral">${Fmt.brl(porPessoa)}</div><div class="stat-sub">${Fmt.brl(totalGeral)} dividido entre ${n}</div></div>`).join('');
-  }
+  const pessoasCasal = DB.get('pessoas') || [];
+  const n = Math.max(1, pessoasCasal.length);
+  const totalDividido = filtrados.filter(r => r.divisao === 'dividida').reduce((s, r) => s + (r.valor || 0), 0);
+  const parteDividida = totalDividido / n;
+  statsHtml += pessoasCasal.map(p => {
+    const totalIndividual = filtrados.filter(r => r.divisao === 'individual' && r.pessoaId === p.id).reduce((s, r) => s + (r.valor || 0), 0);
+    const totalPessoa = totalIndividual + parteDividida;
+    return `
+    <div class="stat-card blue"><div class="stat-label">Soma de Divisão ${p.nome}</div><div class="stat-value neutral">${Fmt.brl(totalPessoa)}</div><div class="stat-sub">Individual + parte das divididas</div></div>`;
+  }).join('');
 
   document.getElementById('statsDespesas').innerHTML = statsHtml;
 }
