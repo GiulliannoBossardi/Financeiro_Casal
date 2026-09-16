@@ -69,11 +69,14 @@ const DB = {
     if (!this.get('extras')) this.set('extras', []);
     if (!this.get('despesas')) this.set('despesas', []);
     if (!this.get('entradas')) this.set('entradas', []);
-    if (!this.get('categoriasDespesa')) this.set('categoriasDespesa', ['Moradia', 'Alimentação', 'Transporte', 'Saúde', 'Lazer', 'Reserva de Emergência', 'Outros']);
+    if (!this.get('categoriasDespesa')) this.set('categoriasDespesa', ['Moradia', 'Alimentação', 'Transporte', 'Saúde', 'Lazer', 'Cartão de Crédito', 'Reserva de Emergência', 'Outros']);
     else {
-      const cats = this.get('categoriasDespesa');
-      const jaTem = cats.some(c => normalizarTexto(c) === 'reserva de emergencia' || normalizarTexto(c) === 'reserva');
-      if (!jaTem) this.set('categoriasDespesa', [...cats, 'Reserva de Emergência']);
+      let cats = this.get('categoriasDespesa');
+      const temReserva = cats.some(c => normalizarTexto(c) === 'reserva de emergencia' || normalizarTexto(c) === 'reserva');
+      if (!temReserva) cats = [...cats, 'Reserva de Emergência'];
+      const temCartao = cats.some(c => normalizarTexto(c) === 'cartao de credito');
+      if (!temCartao) cats = [...cats, 'Cartão de Crédito'];
+      this.set('categoriasDespesa', cats);
     }
     if (!this.get('tiposExtra')) this.set('tiposExtra', ['Hora Extra', 'Bônus', 'PLR', 'Comissão', 'Outro']);
     if (!this.get('theme')) this.set('theme', 'dark');
@@ -95,6 +98,9 @@ function normalizarTexto(s) { return (s || '').toString().normalize('NFD').repla
 function ehInvestimento(categoria) {
   const c = normalizarTexto(categoria);
   return c === 'reserva' || c === 'reserva de emergencia';
+}
+function ehCartaoCredito(categoria) {
+  return normalizarTexto(categoria) === 'cartao de credito';
 }
 
 /* ============================================
@@ -407,6 +413,15 @@ function populaCategoriaSelect(selId, includeAll) {
   sel.innerHTML = html;
   if (cats.includes(atual) || (includeAll && atual === '')) sel.value = atual;
 }
+function populaOrigemSelect(selId, registros, includeAll) {
+  const sel = document.getElementById(selId);
+  const atual = sel.value;
+  const origens = [...new Set(registros.map(r => (r.origem || '').trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'pt-BR'));
+  let html = includeAll ? '<option value="">Todas</option>' : '';
+  html += origens.map(o => `<option value="${o}">${o}</option>`).join('');
+  sel.innerHTML = html;
+  if (origens.includes(atual) || (includeAll && atual === '')) sel.value = atual;
+}
 function populaTipoExtraSelect(selId) {
   const tipos = DB.get('tiposExtra') || [];
   document.getElementById(selId).innerHTML = tipos.map(t => `<option value="${t}">${t}</option>`).join('');
@@ -489,7 +504,6 @@ function renderSalarios() {
     }
   });
   atualizarIconesOrdenacao('salarios');
-  document.getElementById('salBadge').textContent = filtrados.length + ' registro' + (filtrados.length === 1 ? '' : 's');
   const body = document.getElementById('salBody');
   body.innerHTML = filtrados.length ? filtrados.map(r => {
     const liquido = (r.adiantamento || 0) + (r.pagamento || 0);
@@ -682,7 +696,6 @@ function renderExtras() {
     }
   });
   atualizarIconesOrdenacao('extras');
-  document.getElementById('extBadge').textContent = filtrados.length + ' registro' + (filtrados.length === 1 ? '' : 's');
   const body = document.getElementById('extBody');
   body.innerHTML = filtrados.length ? filtrados.map(r => `<tr>
       <td>${pessoaTag(r.pessoaId)}</td><td>${Fmt.ref(r.ref)}</td><td>${r.tipo}</td>
@@ -820,10 +833,12 @@ function renderEntradas() {
   const registros = DB.get('entradas') || [];
   populaRefFiltro('filtroRefEnt', registros);
   populaPessoaSelect('filtroPessoaEnt', true);
+  populaOrigemSelect('filtroOrigemEnt', registros, true);
   const ref = document.getElementById('filtroRefEnt').value;
   const pessoaId = document.getElementById('filtroPessoaEnt').value;
   const status = document.getElementById('filtroStatusEnt').value;
-  let filtrados = registros.filter(r => (!ref || r.ref === ref) && (!pessoaId || r.pessoaId === pessoaId) && (!status || r.status === status) && dentroDoPeriodo(r.ref));
+  const origemFiltro = document.getElementById('filtroOrigemEnt').value;
+  let filtrados = registros.filter(r => (!ref || r.ref === ref) && (!pessoaId || r.pessoaId === pessoaId) && (!status || r.status === status) && (!origemFiltro || r.origem === origemFiltro) && dentroDoPeriodo(r.ref));
   filtrados = aplicarOrdenacao('entradas', filtrados, (r, col) => {
     switch (col) {
       case 'descricao': return r.descricao || '';
@@ -1098,10 +1113,33 @@ function renderDespesas() {
   const totalGeral = filtrados.reduce((s, r) => s + (r.valor || 0), 0);
   const totalPago = filtrados.filter(r => r.status === 'pago').reduce((s, r) => s + (r.valor || 0), 0);
   const totalPendente = totalGeral - totalPago;
-  document.getElementById('statsDespesas').innerHTML = `
+  let statsHtml = `
     <div class="stat-card danger"><div class="stat-label">Total de Despesas</div><div class="stat-value expense">${Fmt.brl(totalGeral)}</div><div class="stat-sub">Somado no período</div></div>
     <div class="stat-card green"><div class="stat-label">Já Pago</div><div class="stat-value income">${Fmt.brl(totalPago)}</div><div class="stat-sub">Quitado no período</div></div>
     <div class="stat-card warn"><div class="stat-label">Pendente</div><div class="stat-value neutral">${Fmt.brl(totalPendente)}</div><div class="stat-sub">A pagar no período</div></div>`;
+
+  if (divisao === 'dividida') {
+    const pessoasCasal = DB.get('pessoas') || [];
+    const n = Math.max(1, pessoasCasal.length);
+    const porPessoa = totalGeral / n;
+    statsHtml += pessoasCasal.map(p => `
+    <div class="stat-card blue"><div class="stat-label">Parte de ${p.nome}</div><div class="stat-value neutral">${Fmt.brl(porPessoa)}</div><div class="stat-sub">${Fmt.brl(totalGeral)} dividido entre ${n}</div></div>`).join('');
+  }
+
+  document.getElementById('statsDespesas').innerHTML = statsHtml;
+}
+
+function marcarCartaoComoPago() {
+  const ref = document.getElementById('filtroRefDesp').value;
+  if (!ref) { toast('Selecione um Mês/Ano específico no filtro para marcar o cartão daquele mês como pago.', 'error'); return; }
+  const registros = DB.get('despesas') || [];
+  const alvo = registros.filter(r => r.ref === ref && ehCartaoCredito(r.categoria) && r.status !== 'pago');
+  if (!alvo.length) { toast('Nenhuma despesa pendente de Cartão de Crédito encontrada para ' + Fmt.ref(ref) + '.', 'error'); return; }
+  if (!confirm('Marcar ' + alvo.length + ' despesa(s) de Cartão de Crédito de ' + Fmt.ref(ref) + ' como pagas?')) return;
+  const atualizados = registros.map(r => (r.ref === ref && ehCartaoCredito(r.categoria) && r.status !== 'pago') ? { ...r, status: 'pago' } : r);
+  DB.set('despesas', atualizados);
+  renderDespesas(); renderResumo(); renderInvestimentos();
+  toast(alvo.length + ' despesa(s) de Cartão de Crédito marcada(s) como pagas.');
 }
 
 /* ============================================
