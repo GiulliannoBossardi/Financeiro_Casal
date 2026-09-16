@@ -689,6 +689,33 @@ function renderExtras() {
 /* ============================================
    ENTRADAS (valores recebidos de terceiros)
 ============================================ */
+function onEntradaTipoChange() {
+  const tipo = document.getElementById('ent_tipo').value;
+  const wrap = document.getElementById('ent_parcelas_wrap');
+  const label = document.getElementById('ent_parcelas_label');
+  const hint = document.getElementById('ent_valor_hint');
+  const valorLabel = document.getElementById('ent_valor_label');
+  const parcelasInput = document.getElementById('ent_parcelas');
+  if (tipo === 'parcelada') {
+    wrap.style.display = 'block';
+    label.textContent = 'Total de Parcelas';
+    parcelasInput.min = 2;
+    if (!parcelasInput.value || +parcelasInput.value < 2) parcelasInput.value = 2;
+    hint.style.display = 'none';
+    valorLabel.textContent = 'Valor (R$)';
+  } else if (tipo === 'recorrente') {
+    wrap.style.display = 'block';
+    label.textContent = 'Gerar quantos meses';
+    parcelasInput.min = 1;
+    if (!parcelasInput.value || +parcelasInput.value < 1) parcelasInput.value = 12;
+    hint.style.display = 'block';
+    valorLabel.textContent = 'Valor Previsto (R$)';
+  } else {
+    wrap.style.display = 'none';
+    hint.style.display = 'none';
+    valorLabel.textContent = 'Valor (R$)';
+  }
+}
 function abrirModalEntrada(id) {
   populaPessoaSelect('ent_pessoa', false);
   const registros = DB.get('entradas') || [];
@@ -700,7 +727,14 @@ function abrirModalEntrada(id) {
   document.getElementById('ent_origem').value = item ? (item.origem || '') : '';
   if (item) document.getElementById('ent_pessoa').value = item.pessoaId || '';
   document.getElementById('ent_valor').value = item ? Fmt.toInput(item.valor) : '';
+  document.getElementById('ent_tipo').value = item ? (item.tipo || 'avista') : 'avista';
+  document.getElementById('ent_parcelas').value = item ? (item.totalParcelas || 2) : 2;
   document.getElementById('ent_status').value = item ? item.status : 'pendente';
+  onEntradaTipoChange();
+  // ao editar uma ocorrência já gerada (parcela ou recorrência), não permite mudar tipo/quantidade —
+  // só descrição, origem, pessoa, valor daquele mês específico e status
+  document.getElementById('ent_tipo').disabled = !!item && (item.tipo === 'parcelada' || item.tipo === 'recorrente');
+  if (item) document.getElementById('ent_parcelas_wrap').style.display = 'none';
   abrirModal('modalEntrada');
 }
 function salvarEntrada() {
@@ -709,26 +743,62 @@ function salvarEntrada() {
   if (!descricao) { toast('Informe a descrição da entrada.', 'error'); return; }
   const pessoaId = document.getElementById('ent_pessoa').value;
   if (!pessoaId) { toast('Selecione quem recebeu.', 'error'); return; }
-  const novo = {
-    id: id || Fmt.uid(),
-    descricao,
-    origem: document.getElementById('ent_origem').value.trim(),
-    pessoaId,
-    ref: lerRef('ent_mes', 'ent_ano'),
-    valor: Fmt.parse(document.getElementById('ent_valor').value),
-    status: document.getElementById('ent_status').value
-  };
+  const origem = document.getElementById('ent_origem').value.trim();
+  const valor = Fmt.parse(document.getElementById('ent_valor').value);
+  const tipo = document.getElementById('ent_tipo').value;
+  const status = document.getElementById('ent_status').value;
+  const refBase = lerRef('ent_mes', 'ent_ano');
   let registros = DB.get('entradas') || [];
-  if (id) registros = registros.map(r => r.id === id ? novo : r);
-  else registros.push(novo);
-  DB.set('entradas', registros);
+
+  if (id) {
+    registros = registros.map(r => r.id === id ? { ...r, descricao, origem, pessoaId, valor, ref: refBase, status } : r);
+    DB.set('entradas', registros);
+    toast('Entrada atualizada.');
+  } else if (tipo === 'parcelada') {
+    const totalParcelas = Math.max(2, parseInt(document.getElementById('ent_parcelas').value) || 2);
+    const grupoId = Fmt.uid();
+    const [anoBase, mesBase] = refBase.split('-').map(Number);
+    for (let i = 0; i < totalParcelas; i++) {
+      const d = new Date(anoBase, mesBase - 1 + i, 1);
+      const ref = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
+      registros.push({
+        id: Fmt.uid(), descricao, origem, pessoaId, valor, ref, tipo, status,
+        parcelaAtual: i + 1, totalParcelas, grupoId
+      });
+    }
+    DB.set('entradas', registros);
+    toast('Entrada parcelada em ' + totalParcelas + 'x criada.');
+  } else if (tipo === 'recorrente') {
+    const totalMeses = Math.max(1, parseInt(document.getElementById('ent_parcelas').value) || 12);
+    const grupoId = Fmt.uid();
+    const [anoBase, mesBase] = refBase.split('-').map(Number);
+    for (let i = 0; i < totalMeses; i++) {
+      const d = new Date(anoBase, mesBase - 1 + i, 1);
+      const ref = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
+      registros.push({
+        id: Fmt.uid(), descricao, origem, pessoaId, valor, valorPrevisto: valor, ref, tipo, status,
+        recorrenteId: grupoId
+      });
+    }
+    DB.set('entradas', registros);
+    toast('Entrada recorrente gerada para ' + totalMeses + ' meses. Você pode editar o valor de cada mês individualmente.');
+  } else {
+    registros.push({ id: Fmt.uid(), descricao, origem, pessoaId, valor, ref: refBase, tipo, status });
+    DB.set('entradas', registros);
+    toast('Entrada salva.');
+  }
   fecharModal('modalEntrada');
-  toast('Entrada salva.');
   renderEntradas(); renderResumo();
 }
 function excluirEntrada(id) {
+  const registros = DB.get('entradas') || [];
+  const item = registros.find(r => r.id === id);
+  if (item && item.tipo === 'parcelada' && item.grupoId) {
+    const futuras = registros.filter(r => r.grupoId === item.grupoId && r.ref > item.ref);
+    if (futuras.length > 0) { abrirModalExcluirParcela(id, 'entradas'); return; }
+  }
   if (!confirm('Excluir esta entrada?')) return;
-  DB.set('entradas', (DB.get('entradas') || []).filter(r => r.id !== id));
+  DB.set('entradas', registros.filter(r => r.id !== id));
   renderEntradas(); renderResumo();
   toast('Entrada excluída.');
 }
@@ -760,10 +830,11 @@ function renderEntradas() {
   const body = document.getElementById('entBody');
   body.innerHTML = filtrados.length ? filtrados.map(r => `<tr>
       <td>${r.descricao}</td><td>${r.origem || '—'}</td><td>${pessoaTag(r.pessoaId)}</td><td>${Fmt.ref(r.ref)}</td>
+      <td>${r.tipo === 'parcelada' ? r.parcelaAtual + '/' + r.totalParcelas : (r.tipo === 'recorrente' ? '🔁 Recorrente' : 'À vista')}</td>
       <td style="color:var(--income,#3ddc84);font-weight:600;">${Fmt.brl(r.valor)}</td>
       <td><span class="pill ${r.status === 'recebido' ? 'ok' : 'pend'}" style="cursor:pointer;" onclick="alternarStatusEntrada('${r.id}')">${r.status === 'recebido' ? 'Recebido' : 'Pendente'}</span></td>
       <td class="row-actions"><button class="icon-btn" onclick="abrirModalEntrada('${r.id}')" title="Editar">✎</button><button class="icon-btn del" onclick="excluirEntrada('${r.id}')" title="Excluir">🗑</button></td>
-    </tr>`).join('') : '<tr class="empty-row"><td colspan="7">Nenhuma entrada encontrada.</td></tr>';
+    </tr>`).join('') : '<tr class="empty-row"><td colspan="8">Nenhuma entrada encontrada.</td></tr>';
 
   const total = filtrados.reduce((s, r) => s + (r.valor || 0), 0);
   const totalRecebido = filtrados.filter(r => r.status === 'recebido').reduce((s, r) => s + (r.valor || 0), 0);
@@ -905,24 +976,26 @@ function excluirDespesa(id) {
   const item = registros.find(r => r.id === id);
   if (item && item.tipo === 'parcelada' && item.grupoId) {
     const futuras = registros.filter(r => r.grupoId === item.grupoId && r.ref > item.ref);
-    if (futuras.length > 0) { abrirModalExcluirParcela(id); return; }
+    if (futuras.length > 0) { abrirModalExcluirParcela(id, 'despesas'); return; }
   }
   if (!confirm('Excluir esta despesa?')) return;
   DB.set('despesas', registros.filter(r => r.id !== id));
   renderDespesas(); renderResumo(); renderInvestimentos();
   toast('Despesa excluída.');
 }
-function abrirModalExcluirParcela(id) {
+function abrirModalExcluirParcela(id, tabela) {
   document.getElementById('excl_parcela_id').value = id;
+  document.getElementById('excl_parcela_tabela').value = tabela;
   const radio = document.querySelector('input[name="exclParcelaOpcao"][value="somente"]');
   if (radio) radio.checked = true;
   abrirModal('modalExcluirParcela');
 }
 function confirmarExclusaoParcela() {
   const id = document.getElementById('excl_parcela_id').value;
+  const tabela = document.getElementById('excl_parcela_tabela').value || 'despesas';
   const opcaoEl = document.querySelector('input[name="exclParcelaOpcao"]:checked');
   const opcao = opcaoEl ? opcaoEl.value : 'somente';
-  let registros = DB.get('despesas') || [];
+  let registros = DB.get(tabela) || [];
   const item = registros.find(r => r.id === id);
   if (!item) { fecharModal('modalExcluirParcela'); return; }
 
@@ -938,10 +1011,11 @@ function confirmarExclusaoParcela() {
   } else {
     registros = registros.filter(r => r.id !== id);
   }
-  DB.set('despesas', registros);
+  DB.set(tabela, registros);
   fecharModal('modalExcluirParcela');
-  renderDespesas(); renderResumo(); renderInvestimentos();
-  toast('Despesa excluída.');
+  if (tabela === 'entradas') { renderEntradas(); renderResumo(); }
+  else { renderDespesas(); renderResumo(); renderInvestimentos(); }
+  toast(tabela === 'entradas' ? 'Entrada excluída.' : 'Despesa excluída.');
 }
 function alternarStatusDespesa(id) {
   const registros = (DB.get('despesas') || []).map(r => r.id === id ? { ...r, status: r.status === 'pago' ? 'pendente' : 'pago' } : r);
@@ -1030,11 +1104,12 @@ function renderInvestimentos() {
     <div class="stat-card warn"><div class="stat-label">Lançamentos</div><div class="stat-value neutral">${filtrados.length}</div><div class="stat-sub">Registros no filtro atual</div></div>`;
 }
 
-function renovarRecorrentes() {
-  // Para cada despesa recorrente, garante que sempre existam pelo menos
-  // 12 meses gerados à frente do mês atual. Usa a descrição/categoria/valor
-  // previsto da última ocorrência de cada grupo como modelo para as novas.
-  const registros = DB.get('despesas') || [];
+function renovarRecorrentes(tabela) {
+  // Para cada lançamento recorrente (despesa ou entrada), garante que sempre
+  // existam pelo menos 12 meses gerados à frente do mês atual, usando o
+  // último registro do grupo como modelo para os novos.
+  tabela = tabela || 'despesas';
+  const registros = DB.get(tabela) || [];
   const ultimaPorGrupo = {};
   registros.forEach(r => {
     if (r.tipo === 'recorrente' && r.recorrenteId) {
@@ -1054,21 +1129,24 @@ function renovarRecorrentes() {
     while (d < limiteAlvo) {
       const ref = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
       novos.push({
-        id: Fmt.uid(), descricao: ultimo.descricao, categoria: ultimo.categoria,
-        valor: ultimo.valorPrevisto ?? ultimo.valor, valorPrevisto: ultimo.valorPrevisto ?? ultimo.valor,
-        ref, tipo: 'recorrente', status: 'pendente', recorrenteId: ultimo.recorrenteId,
-        divisao: ultimo.divisao, pessoaId: ultimo.pessoaId
+        ...ultimo,
+        id: Fmt.uid(),
+        ref,
+        valor: ultimo.valorPrevisto ?? ultimo.valor,
+        valorPrevisto: ultimo.valorPrevisto ?? ultimo.valor,
+        status: 'pendente'
       });
       i++;
       d = new Date(anoU, mesU - 1 + i, 1);
     }
   });
   if (novos.length) {
-    DB.set('despesas', [...registros, ...novos]);
-    renderDespesas(); renderResumo(); renderInvestimentos();
-    toast(novos.length + ' mês(es) gerado(s) para despesas recorrentes.');
+    DB.set(tabela, [...registros, ...novos]);
+    if (tabela === 'entradas') { renderEntradas(); renderResumo(); }
+    else { renderDespesas(); renderResumo(); renderInvestimentos(); }
+    toast(novos.length + ' mês(es) gerado(s) para ' + (tabela === 'entradas' ? 'entradas' : 'despesas') + ' recorrentes.');
   } else {
-    toast('Nenhuma despesa recorrente precisa de renovação agora.');
+    toast('Nenhuma ' + (tabela === 'entradas' ? 'entrada' : 'despesa') + ' recorrente precisa de renovação agora.');
   }
 }
 

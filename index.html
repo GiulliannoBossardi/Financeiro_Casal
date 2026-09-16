@@ -167,12 +167,13 @@
         </div>
         <div class="grid-3 mb-20" id="statsEntradas"></div>
         <div class="card">
-          <div class="card-header"><div class="card-title">Entradas de Terceiros</div><div class="flex-gap"><span class="card-badge" id="entBadge">0 registros</span><button class="btn btn-primary btn-sm" onclick="abrirModalEntrada()">+ Nova</button></div></div>
+          <div class="card-header"><div class="card-title">Entradas de Terceiros</div><div class="flex-gap"><span class="card-badge" id="entBadge">0 registros</span><button class="btn btn-sm" title="Gera novos meses para as entradas recorrentes que estão perto de acabar" onclick="renovarRecorrentes('entradas')">🔁 Renovar Recorrências</button><button class="btn btn-primary btn-sm" onclick="abrirModalEntrada()">+ Nova</button></div></div>
           <div class="table-wrap"><table><thead><tr>
             <th class="sortable" data-tabela="entradas" data-col="descricao" data-tipo="texto">Descrição <span class="sort-icon">⇅</span></th>
             <th class="sortable" data-tabela="entradas" data-col="origem" data-tipo="texto">De quem <span class="sort-icon">⇅</span></th>
             <th class="sortable" data-tabela="entradas" data-col="pessoa" data-tipo="texto">Recebido por <span class="sort-icon">⇅</span></th>
             <th class="sortable" data-tabela="entradas" data-col="ref" data-tipo="data">Referência <span class="sort-icon">⇅</span></th>
+            <th class="no-sort">Tipo</th>
             <th class="sortable" data-tabela="entradas" data-col="valor" data-tipo="valor">Valor <span class="sort-icon">⇅</span></th>
             <th class="sortable" data-tabela="entradas" data-col="status" data-tipo="texto">Status <span class="sort-icon">⇅</span></th>
             <th class="no-sort">Ações</th>
@@ -333,6 +334,7 @@
   <div class="modal-header"><div class="modal-title">Excluir Parcela</div><button class="modal-close" onclick="fecharModal('modalExcluirParcela')">✕</button></div>
   <div class="modal-body">
     <input type="hidden" id="excl_parcela_id"/>
+    <input type="hidden" id="excl_parcela_tabela"/>
     <p style="margin:0 0 14px;">Esta despesa faz parte de uma compra parcelada e existem parcelas futuras. O que deseja fazer?</p>
     <div class="form-row full"><div style="display:flex;flex-direction:column;gap:10px;">
       <label style="display:flex;align-items:flex-start;gap:8px;font-weight:400;cursor:pointer;"><input type="radio" name="exclParcelaOpcao" value="somente" checked style="margin-top:3px;"/> <span>Excluir somente esta parcela</span></label>
@@ -350,7 +352,10 @@
     <div class="form-row full"><div><label>Descrição</label><input type="text" id="ent_descricao" placeholder="Ex: Reembolso, Aluguel recebido..."/></div></div>
     <div class="form-row"><div><label>De quem / Origem</label><input type="text" id="ent_origem" placeholder="Ex: Fulano, Inquilino..."/></div><div><label>Recebido por</label><select id="ent_pessoa" class="pessoa-select"></select></div></div>
     <div class="form-row"><div><label>Mês</label><select id="ent_mes"></select></div><div><label>Ano</label><select id="ent_ano"></select></div></div>
-    <div class="form-row"><div><label>Valor (R$)</label><input type="text" inputmode="decimal" class="money-input" id="ent_valor" placeholder="0,00"/></div><div><label>Status</label><select id="ent_status"><option value="pendente">Pendente</option><option value="recebido">Recebido</option></select></div></div>
+    <div class="form-row"><div><label id="ent_valor_label">Valor (R$)</label><input type="text" inputmode="decimal" class="money-input" id="ent_valor" placeholder="0,00"/></div><div><label>Status</label><select id="ent_status"><option value="pendente">Pendente</option><option value="recebido">Recebido</option></select></div></div>
+    <div class="form-row full" id="ent_valor_hint" style="display:none;"><small style="color:var(--text-muted, #888);">Esse valor é o previsto. Cada mês gerado fica independente e você poderá editar o valor exato quando a entrada daquele mês acontecer.</small></div>
+    <div class="form-row full"><div><label>Tipo</label><select id="ent_tipo" onchange="onEntradaTipoChange()"><option value="avista">À vista</option><option value="parcelada">Parcelada</option><option value="recorrente">Recorrente</option></select></div></div>
+    <div class="form-row full" id="ent_parcelas_wrap" style="display:none;"><div><label id="ent_parcelas_label">Total de Parcelas</label><input type="number" id="ent_parcelas" min="2" value="2"/></div></div>
   </div>
   <div class="modal-footer"><button class="btn" onclick="fecharModal('modalEntrada')">Cancelar</button><button class="btn btn-primary" onclick="salvarEntrada()">Salvar</button></div>
 </div></div>
