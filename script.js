@@ -6,13 +6,12 @@ function initFirebase() {
   try {
     firebase.initializeApp(firebaseConfig);
     _db = firebase.firestore();
-    // API nova de cache (substitui o enablePersistence/enableMultiTabIndexedDbPersistence,
-    // que está sendo descontinuado pelo Firebase).
-    _db.settings({
-      cache: firebase.firestore.persistentLocalCache({
-        tabManager: firebase.firestore.persistentMultipleTabManager()
-      })
-    });
+    // O SDK "compat" (usado aqui) ainda não expõe a API nova de cache
+    // (persistentLocalCache/persistentMultipleTabManager) — isso só existe
+    // na API modular do Firebase. Enquanto o app usar o compat, o método
+    // abaixo é o correto; o aviso de depreciação no console pode ser
+    // ignorado com segurança até uma eventual migração para o SDK modular.
+    _db.enablePersistence({ synchronizeTabs: true }).catch(() => {});
   } catch (e) {
     console.error('Erro ao iniciar Firebase:', e);
   }
