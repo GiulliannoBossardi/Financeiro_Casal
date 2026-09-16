@@ -6,7 +6,13 @@ function initFirebase() {
   try {
     firebase.initializeApp(firebaseConfig);
     _db = firebase.firestore();
-    _db.enablePersistence({ synchronizeTabs: true }).catch(() => {});
+    // API nova de cache (substitui o enablePersistence/enableMultiTabIndexedDbPersistence,
+    // que está sendo descontinuado pelo Firebase).
+    _db.settings({
+      cache: firebase.firestore.persistentLocalCache({
+        tabManager: firebase.firestore.persistentMultipleTabManager()
+      })
+    });
   } catch (e) {
     console.error('Erro ao iniciar Firebase:', e);
   }
@@ -409,9 +415,16 @@ function populaTipoExtraSelect(selId) {
 function populaRefFiltro(selId, registros) {
   const sel = document.getElementById(selId);
   const atual = sel.value;
-  const refs = [...new Set(registros.map(r => r.ref))].sort().reverse();
+  const refs = [...new Set(registros.map(r => r.ref))].sort(); // do mais antigo para o mais novo
   sel.innerHTML = '<option value="">Todos os períodos</option>' + refs.map(r => `<option value="${r}">${Fmt.ref(r)}</option>`).join('');
-  if (refs.includes(atual)) sel.value = atual;
+  if (refs.includes(atual)) {
+    sel.value = atual;
+  } else if (!sel.dataset.inicializado) {
+    const hoje = new Date();
+    const refAtual = hoje.getFullYear() + '-' + String(hoje.getMonth() + 1).padStart(2, '0');
+    if (refs.includes(refAtual)) sel.value = refAtual;
+  }
+  sel.dataset.inicializado = '1';
 }
 function pessoaNome(id) { const p = (DB.get('pessoas') || []).find(p => p.id === id); return p ? p.nome : '—'; }
 function pessoaCor(id) { const p = (DB.get('pessoas') || []).find(p => p.id === id); return p ? p.cor : '#888'; }
@@ -1053,7 +1066,15 @@ function renderDespesas() {
   const ref = document.getElementById('filtroRefDesp').value;
   const status = document.getElementById('filtroStatusDesp').value;
   const categoria = document.getElementById('filtroCatDesp').value;
-  let filtrados = registros.filter(r => (!ref || r.ref === ref) && (!status || r.status === status) && (!categoria || r.categoria === categoria) && dentroDoPeriodo(r.ref));
+  const divisao = document.getElementById('filtroDivisaoDesp').value;
+  const descricaoBusca = normalizarTexto(document.getElementById('filtroDescDesp').value);
+  let filtrados = registros.filter(r =>
+    (!ref || r.ref === ref) &&
+    (!status || r.status === status) &&
+    (!categoria || r.categoria === categoria) &&
+    (!divisao || r.divisao === divisao) &&
+    (!descricaoBusca || normalizarTexto(r.descricao).includes(descricaoBusca)) &&
+    dentroDoPeriodo(r.ref));
   filtrados = aplicarOrdenacao('despesas', filtrados, (r, col) => {
     switch (col) {
       case 'descricao': return r.descricao || '';

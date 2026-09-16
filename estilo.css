@@ -148,6 +148,10 @@ label{font-size:.75rem;color:var(--text2);display:block;margin-bottom:5px;}
 table{width:100%;border-collapse:collapse;font-size:.82rem;}
 th{text-align:left;padding:10px 14px;color:var(--text2);font-weight:600;font-size:.72rem;text-transform:uppercase;letter-spacing:.03em;border-bottom:1px solid var(--border);white-space:nowrap;cursor:pointer;}
 th.no-sort{cursor:default;}
+th.th-has-filter{white-space:normal;min-width:160px;vertical-align:top;}
+th .th-label{display:flex;align-items:center;gap:4px;cursor:pointer;}
+.th-filter{display:block;margin-top:6px;width:100%;box-sizing:border-box;font-size:.72rem;font-weight:400;text-transform:none;letter-spacing:normal;padding:5px 7px;border-radius:6px;border:1px solid var(--border2);background:var(--card2);color:var(--text);cursor:auto;}
+.th-filter::placeholder{color:var(--text3);}
 .sort-icon{opacity:.4;font-size:.7rem;}
 td{padding:10px 14px;border-bottom:1px solid var(--border);white-space:nowrap;}
 tr:last-child td{border-bottom:none;}

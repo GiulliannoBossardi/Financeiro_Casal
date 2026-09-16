@@ -188,15 +188,21 @@
           <div class="filter-sep"></div>
           <label>Status:</label><select id="filtroStatusDesp" onchange="renderDespesas()" style="width:130px;"><option value="">Todos</option><option value="pendente">Pendente</option><option value="pago">Pago</option></select>
           <div class="filter-sep"></div>
-          <label>Categoria:</label><select id="filtroCatDesp" onchange="renderDespesas()" style="width:150px;"></select>
-          <button class="filter-clear" onclick="document.getElementById('filtroRefDesp').value='';document.getElementById('filtroStatusDesp').value='';document.getElementById('filtroCatDesp').value='';renderDespesas();">✕ Limpar</button>
+          <label>Divisão:</label><select id="filtroDivisaoDesp" onchange="renderDespesas()" style="width:140px;"><option value="">Todas</option><option value="individual">Individual</option><option value="dividida">Dividida</option></select>
+          <button class="filter-clear" onclick="document.getElementById('filtroRefDesp').value='';document.getElementById('filtroStatusDesp').value='';document.getElementById('filtroDivisaoDesp').value='';document.getElementById('filtroCatDesp').value='';document.getElementById('filtroDescDesp').value='';renderDespesas();">✕ Limpar</button>
         </div>
         <div class="grid-3 mb-20" id="statsDespesas"></div>
         <div class="card">
           <div class="card-header"><div class="card-title">Despesas do Casal</div><div class="flex-gap"><span class="card-badge" id="despBadge">0 registros</span><button class="btn btn-sm" title="Gera novos meses para as despesas recorrentes que estão perto de acabar" onclick="renovarRecorrentes()">🔁 Renovar Recorrências</button><button class="btn btn-primary btn-sm" onclick="abrirModalDespesa()">+ Nova</button></div></div>
           <div class="table-wrap"><table><thead><tr>
-            <th class="sortable" data-tabela="despesas" data-col="descricao" data-tipo="texto">Descrição <span class="sort-icon">⇅</span></th>
-            <th class="sortable" data-tabela="despesas" data-col="categoria" data-tipo="texto">Categoria <span class="sort-icon">⇅</span></th>
+            <th class="sortable th-has-filter" data-tabela="despesas" data-col="descricao" data-tipo="texto">
+              <div class="th-label">Descrição <span class="sort-icon">⇅</span></div>
+              <input type="text" id="filtroDescDesp" class="th-filter" placeholder="Filtrar descrição..." oninput="renderDespesas()" onclick="event.stopPropagation()"/>
+            </th>
+            <th class="sortable th-has-filter" data-tabela="despesas" data-col="categoria" data-tipo="texto">
+              <div class="th-label">Categoria <span class="sort-icon">⇅</span></div>
+              <select id="filtroCatDesp" class="th-filter" onchange="renderDespesas()" onclick="event.stopPropagation()"></select>
+            </th>
             <th class="sortable" data-tabela="despesas" data-col="ref" data-tipo="data">Referência <span class="sort-icon">⇅</span></th>
             <th class="no-sort">Tipo</th>
             <th class="no-sort">Divisão</th>
