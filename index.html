@@ -331,15 +331,15 @@
 </div></div>
 
 <div class="modal-overlay" id="modalExcluirParcela"><div class="modal">
-  <div class="modal-header"><div class="modal-title">Excluir Parcela</div><button class="modal-close" onclick="fecharModal('modalExcluirParcela')">✕</button></div>
+  <div class="modal-header"><div class="modal-title" id="tituloModalExcluirParcela">Excluir Parcela</div><button class="modal-close" onclick="fecharModal('modalExcluirParcela')">✕</button></div>
   <div class="modal-body">
     <input type="hidden" id="excl_parcela_id"/>
     <input type="hidden" id="excl_parcela_tabela"/>
-    <p style="margin:0 0 14px;">Esta despesa faz parte de uma compra parcelada e existem parcelas futuras. O que deseja fazer?</p>
+    <p id="excl_parcela_texto" style="margin:0 0 14px;">Este lançamento faz parte de uma compra parcelada e existem parcelas futuras. O que deseja fazer?</p>
     <div class="form-row full"><div style="display:flex;flex-direction:column;gap:10px;">
-      <label style="display:flex;align-items:flex-start;gap:8px;font-weight:400;cursor:pointer;"><input type="radio" name="exclParcelaOpcao" value="somente" checked style="margin-top:3px;"/> <span>Excluir somente esta parcela</span></label>
-      <label style="display:flex;align-items:flex-start;gap:8px;font-weight:400;cursor:pointer;"><input type="radio" name="exclParcelaOpcao" value="subsequentes" style="margin-top:3px;"/> <span>Excluir esta e todas as parcelas futuras</span></label>
-      <label style="display:flex;align-items:flex-start;gap:8px;font-weight:400;cursor:pointer;"><input type="radio" name="exclParcelaOpcao" value="recalcular" style="margin-top:3px;"/> <span>Excluir esta e recalcular a numeração das parcelas restantes (mantém os valores, só ajusta o "X de Y")</span></label>
+      <label style="display:flex;align-items:flex-start;gap:8px;font-weight:400;cursor:pointer;"><input type="radio" name="exclParcelaOpcao" value="somente" checked style="margin-top:3px;"/> <span id="excl_opcao_somente_texto">Excluir somente esta parcela</span></label>
+      <label style="display:flex;align-items:flex-start;gap:8px;font-weight:400;cursor:pointer;"><input type="radio" name="exclParcelaOpcao" value="subsequentes" style="margin-top:3px;"/> <span id="excl_opcao_subsequentes_texto">Excluir esta e todas as parcelas futuras</span></label>
+      <label id="excl_opcao_recalcular_wrap" style="display:flex;align-items:flex-start;gap:8px;font-weight:400;cursor:pointer;"><input type="radio" name="exclParcelaOpcao" value="recalcular" style="margin-top:3px;"/> <span>Excluir esta e recalcular a numeração das parcelas restantes (mantém os valores, só ajusta o "X de Y")</span></label>
     </div></div>
   </div>
   <div class="modal-footer"><button class="btn" onclick="fecharModal('modalExcluirParcela')">Cancelar</button><button class="btn btn-primary" onclick="confirmarExclusaoParcela()">Excluir</button></div>

@@ -793,10 +793,7 @@ function salvarEntrada() {
 function excluirEntrada(id) {
   const registros = DB.get('entradas') || [];
   const item = registros.find(r => r.id === id);
-  if (item && item.tipo === 'parcelada' && item.grupoId) {
-    const futuras = registros.filter(r => r.grupoId === item.grupoId && r.ref > item.ref);
-    if (futuras.length > 0) { abrirModalExcluirParcela(id, 'entradas'); return; }
-  }
+  if (item && possuiOcorrenciasFuturas(item, registros)) { abrirModalExcluirParcela(id, 'entradas'); return; }
   if (!confirm('Excluir esta entrada?')) return;
   DB.set('entradas', registros.filter(r => r.id !== id));
   renderEntradas(); renderResumo();
@@ -971,13 +968,19 @@ function salvarDespesa() {
   fecharModal('modalDespesa');
   renderDespesas(); renderResumo(); renderInvestimentos();
 }
+function possuiOcorrenciasFuturas(item, registros) {
+  if (item.tipo === 'parcelada' && item.grupoId) {
+    return registros.some(r => r.grupoId === item.grupoId && r.ref > item.ref);
+  }
+  if (item.tipo === 'recorrente' && item.recorrenteId) {
+    return registros.some(r => r.recorrenteId === item.recorrenteId && r.ref > item.ref);
+  }
+  return false;
+}
 function excluirDespesa(id) {
   const registros = DB.get('despesas') || [];
   const item = registros.find(r => r.id === id);
-  if (item && item.tipo === 'parcelada' && item.grupoId) {
-    const futuras = registros.filter(r => r.grupoId === item.grupoId && r.ref > item.ref);
-    if (futuras.length > 0) { abrirModalExcluirParcela(id, 'despesas'); return; }
-  }
+  if (item && possuiOcorrenciasFuturas(item, registros)) { abrirModalExcluirParcela(id, 'despesas'); return; }
   if (!confirm('Excluir esta despesa?')) return;
   DB.set('despesas', registros.filter(r => r.id !== id));
   renderDespesas(); renderResumo(); renderInvestimentos();
@@ -986,6 +989,16 @@ function excluirDespesa(id) {
 function abrirModalExcluirParcela(id, tabela) {
   document.getElementById('excl_parcela_id').value = id;
   document.getElementById('excl_parcela_tabela').value = tabela;
+  const registros = DB.get(tabela) || [];
+  const item = registros.find(r => r.id === id);
+  const ehParcelada = !!item && item.tipo === 'parcelada';
+  document.getElementById('excl_opcao_recalcular_wrap').style.display = ehParcelada ? 'flex' : 'none';
+  document.getElementById('excl_parcela_texto').textContent = ehParcelada
+    ? 'Este lançamento faz parte de uma compra parcelada e existem parcelas futuras. O que deseja fazer?'
+    : 'Este lançamento é recorrente e existem meses futuros já gerados. O que deseja fazer?';
+  document.getElementById('excl_opcao_somente_texto').textContent = ehParcelada ? 'Excluir somente esta parcela' : 'Excluir somente este mês';
+  document.getElementById('excl_opcao_subsequentes_texto').textContent = ehParcelada ? 'Excluir esta e todas as parcelas futuras' : 'Excluir este e todos os meses futuros';
+  document.getElementById('tituloModalExcluirParcela').textContent = ehParcelada ? 'Excluir Parcela' : 'Excluir Recorrência';
   const radio = document.querySelector('input[name="exclParcelaOpcao"][value="somente"]');
   if (radio) radio.checked = true;
   abrirModal('modalExcluirParcela');
@@ -998,14 +1011,16 @@ function confirmarExclusaoParcela() {
   let registros = DB.get(tabela) || [];
   const item = registros.find(r => r.id === id);
   if (!item) { fecharModal('modalExcluirParcela'); return; }
+  const grupoField = item.tipo === 'recorrente' ? 'recorrenteId' : 'grupoId';
+  const grupoValor = item[grupoField];
 
   if (opcao === 'subsequentes') {
-    registros = registros.filter(r => !(r.grupoId === item.grupoId && r.ref >= item.ref));
-  } else if (opcao === 'recalcular') {
+    registros = registros.filter(r => !(r[grupoField] === grupoValor && r.ref >= item.ref));
+  } else if (opcao === 'recalcular' && item.tipo === 'parcelada') {
     const parcelaExcluida = item.parcelaAtual;
     registros = registros
       .filter(r => r.id !== id)
-      .map(r => r.grupoId === item.grupoId
+      .map(r => r.grupoId === grupoValor
         ? { ...r, parcelaAtual: r.parcelaAtual > parcelaExcluida ? r.parcelaAtual - 1 : r.parcelaAtual, totalParcelas: r.totalParcelas - 1 }
         : r);
   } else {
