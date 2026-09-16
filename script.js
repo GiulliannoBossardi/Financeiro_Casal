@@ -63,7 +63,13 @@ const DB = {
     if (!this.get('valeRefeicao')) this.set('valeRefeicao', []);
     if (!this.get('extras')) this.set('extras', []);
     if (!this.get('despesas')) this.set('despesas', []);
-    if (!this.get('categoriasDespesa')) this.set('categoriasDespesa', ['Moradia', 'Alimentação', 'Transporte', 'Saúde', 'Lazer', 'Outros']);
+    if (!this.get('entradas')) this.set('entradas', []);
+    if (!this.get('categoriasDespesa')) this.set('categoriasDespesa', ['Moradia', 'Alimentação', 'Transporte', 'Saúde', 'Lazer', 'Reserva de Emergência', 'Outros']);
+    else {
+      const cats = this.get('categoriasDespesa');
+      const jaTem = cats.some(c => normalizarTexto(c) === 'reserva de emergencia' || normalizarTexto(c) === 'reserva');
+      if (!jaTem) this.set('categoriasDespesa', [...cats, 'Reserva de Emergência']);
+    }
     if (!this.get('tiposExtra')) this.set('tiposExtra', ['Hora Extra', 'Bônus', 'PLR', 'Comissão', 'Outro']);
     if (!this.get('theme')) this.set('theme', 'dark');
   }
@@ -80,6 +86,11 @@ const Fmt = {
   ref(r) { if (!r) return '—'; const [y, m] = r.split('-'); return MESES[+m - 1] + '/' + y; },
   uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 7); }
 };
+function normalizarTexto(s) { return (s || '').toString().normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim(); }
+function ehInvestimento(categoria) {
+  const c = normalizarTexto(categoria);
+  return c === 'reserva' || c === 'reserva de emergencia';
+}
 
 /* ============================================
    MÁSCARA DE VALORES (R$) — só números, separa
@@ -110,7 +121,9 @@ const sortState = {
   salarios: { col: 'ref', dir: 'desc' },
   vr: { col: 'ref', dir: 'desc' },
   extras: { col: 'ref', dir: 'desc' },
-  despesas: { col: 'ref', dir: 'desc' }
+  entradas: { col: 'ref', dir: 'desc' },
+  despesas: { col: 'ref', dir: 'desc' },
+  investimentos: { col: 'ref', dir: 'desc' }
 };
 const RENDER_POR_TABELA = {};
 function ordenarTabela(tabela, col, tipo) {
@@ -374,16 +387,20 @@ function lerRef(selMes, selAno) { return document.getElementById(selAno).value +
 function populaPessoaSelect(selId, includeAll) {
   const pessoas = DB.get('pessoas') || [];
   const sel = document.getElementById(selId);
+  const atual = sel.value;
   let html = includeAll ? '<option value="">Todas as pessoas</option>' : '';
   html += pessoas.map(p => `<option value="${p.id}">${p.nome}</option>`).join('');
   sel.innerHTML = html;
+  if (pessoas.some(p => p.id === atual) || (includeAll && atual === '')) sel.value = atual;
 }
 function populaCategoriaSelect(selId, includeAll) {
   const cats = DB.get('categoriasDespesa') || [];
   const sel = document.getElementById(selId);
+  const atual = sel.value;
   let html = includeAll ? '<option value="">Todas</option>' : '';
   html += cats.map(c => `<option value="${c}">${c}</option>`).join('');
   sel.innerHTML = html;
+  if (cats.includes(atual) || (includeAll && atual === '')) sel.value = atual;
 }
 function populaTipoExtraSelect(selId) {
   const tipos = DB.get('tiposExtra') || [];
@@ -670,6 +687,93 @@ function renderExtras() {
 }
 
 /* ============================================
+   ENTRADAS (valores recebidos de terceiros)
+============================================ */
+function abrirModalEntrada(id) {
+  populaPessoaSelect('ent_pessoa', false);
+  const registros = DB.get('entradas') || [];
+  const item = registros.find(r => r.id === id);
+  document.getElementById('tituloModalEntrada').textContent = item ? 'Editar Entrada' : 'Nova Entrada';
+  document.getElementById('ent_id').value = id || '';
+  populaMesAno('ent_mes', 'ent_ano', item ? item.ref : null);
+  document.getElementById('ent_descricao').value = item ? item.descricao : '';
+  document.getElementById('ent_origem').value = item ? (item.origem || '') : '';
+  if (item) document.getElementById('ent_pessoa').value = item.pessoaId || '';
+  document.getElementById('ent_valor').value = item ? Fmt.toInput(item.valor) : '';
+  document.getElementById('ent_status').value = item ? item.status : 'pendente';
+  abrirModal('modalEntrada');
+}
+function salvarEntrada() {
+  const id = document.getElementById('ent_id').value;
+  const descricao = document.getElementById('ent_descricao').value.trim();
+  if (!descricao) { toast('Informe a descrição da entrada.', 'error'); return; }
+  const pessoaId = document.getElementById('ent_pessoa').value;
+  if (!pessoaId) { toast('Selecione quem recebeu.', 'error'); return; }
+  const novo = {
+    id: id || Fmt.uid(),
+    descricao,
+    origem: document.getElementById('ent_origem').value.trim(),
+    pessoaId,
+    ref: lerRef('ent_mes', 'ent_ano'),
+    valor: Fmt.parse(document.getElementById('ent_valor').value),
+    status: document.getElementById('ent_status').value
+  };
+  let registros = DB.get('entradas') || [];
+  if (id) registros = registros.map(r => r.id === id ? novo : r);
+  else registros.push(novo);
+  DB.set('entradas', registros);
+  fecharModal('modalEntrada');
+  toast('Entrada salva.');
+  renderEntradas(); renderResumo();
+}
+function excluirEntrada(id) {
+  if (!confirm('Excluir esta entrada?')) return;
+  DB.set('entradas', (DB.get('entradas') || []).filter(r => r.id !== id));
+  renderEntradas(); renderResumo();
+  toast('Entrada excluída.');
+}
+function alternarStatusEntrada(id) {
+  const registros = (DB.get('entradas') || []).map(r => r.id === id ? { ...r, status: r.status === 'recebido' ? 'pendente' : 'recebido' } : r);
+  DB.set('entradas', registros);
+  renderEntradas(); renderResumo();
+}
+function renderEntradas() {
+  const registros = DB.get('entradas') || [];
+  populaRefFiltro('filtroRefEnt', registros);
+  populaPessoaSelect('filtroPessoaEnt', true);
+  const ref = document.getElementById('filtroRefEnt').value;
+  const pessoaId = document.getElementById('filtroPessoaEnt').value;
+  const status = document.getElementById('filtroStatusEnt').value;
+  let filtrados = registros.filter(r => (!ref || r.ref === ref) && (!pessoaId || r.pessoaId === pessoaId) && (!status || r.status === status) && dentroDoPeriodo(r.ref));
+  filtrados = aplicarOrdenacao('entradas', filtrados, (r, col) => {
+    switch (col) {
+      case 'descricao': return r.descricao || '';
+      case 'origem': return r.origem || '';
+      case 'pessoa': return pessoaNome(r.pessoaId);
+      case 'valor': return r.valor || 0;
+      case 'status': return r.status || '';
+      default: return r.ref || '';
+    }
+  });
+  atualizarIconesOrdenacao('entradas');
+  document.getElementById('entBadge').textContent = filtrados.length + ' registro' + (filtrados.length === 1 ? '' : 's');
+  const body = document.getElementById('entBody');
+  body.innerHTML = filtrados.length ? filtrados.map(r => `<tr>
+      <td>${r.descricao}</td><td>${r.origem || '—'}</td><td>${pessoaTag(r.pessoaId)}</td><td>${Fmt.ref(r.ref)}</td>
+      <td style="color:var(--income,#3ddc84);font-weight:600;">${Fmt.brl(r.valor)}</td>
+      <td><span class="pill ${r.status === 'recebido' ? 'ok' : 'pend'}" style="cursor:pointer;" onclick="alternarStatusEntrada('${r.id}')">${r.status === 'recebido' ? 'Recebido' : 'Pendente'}</span></td>
+      <td class="row-actions"><button class="icon-btn" onclick="abrirModalEntrada('${r.id}')" title="Editar">✎</button><button class="icon-btn del" onclick="excluirEntrada('${r.id}')" title="Excluir">🗑</button></td>
+    </tr>`).join('') : '<tr class="empty-row"><td colspan="7">Nenhuma entrada encontrada.</td></tr>';
+
+  const total = filtrados.reduce((s, r) => s + (r.valor || 0), 0);
+  const totalRecebido = filtrados.filter(r => r.status === 'recebido').reduce((s, r) => s + (r.valor || 0), 0);
+  document.getElementById('statsEntradas').innerHTML = `
+    <div class="stat-card green"><div class="stat-label">Total de Entradas</div><div class="stat-value income">${Fmt.brl(total)}</div><div class="stat-sub">Somado no período</div></div>
+    <div class="stat-card blue"><div class="stat-label">Já Recebido</div><div class="stat-value income">${Fmt.brl(totalRecebido)}</div><div class="stat-sub">Confirmado no período</div></div>
+    <div class="stat-card warn"><div class="stat-label">Pendente</div><div class="stat-value neutral">${Fmt.brl(total - totalRecebido)}</div><div class="stat-sub">A receber no período</div></div>`;
+}
+
+/* ============================================
    DESPESAS
 ============================================ */
 function onDespesaTipoChange() {
@@ -699,8 +803,28 @@ function onDespesaTipoChange() {
     valorLabel.textContent = 'Valor (R$)';
   }
 }
+function onDivisaoChange() {
+  const divisao = document.getElementById('desp_divisao').value;
+  document.getElementById('desp_pessoa_wrap').style.display = divisao === 'individual' ? 'block' : 'none';
+  atualizarHintDivisao();
+}
+function atualizarHintDivisao() {
+  const divisao = document.getElementById('desp_divisao').value;
+  const hint = document.getElementById('desp_divisao_hint');
+  const hintText = document.getElementById('desp_divisao_hint_text');
+  if (divisao === 'dividida') {
+    const pessoas = DB.get('pessoas') || [];
+    const n = Math.max(1, pessoas.length);
+    const valor = Fmt.parse(document.getElementById('desp_valor').value);
+    hintText.textContent = 'Cada pessoa fica com ' + Fmt.brl(valor / n) + ' (dividido entre ' + n + (n === 1 ? ' pessoa' : ' pessoas') + ').';
+    hint.style.display = 'block';
+  } else {
+    hint.style.display = 'none';
+  }
+}
 function abrirModalDespesa(id) {
   populaCategoriaSelect('desp_categoria', false);
+  populaPessoaSelect('desp_pessoa', false);
   const registros = DB.get('despesas') || [];
   const item = registros.find(r => r.id === id);
   document.getElementById('tituloModalDespesa').textContent = item ? 'Editar Despesa' : 'Nova Despesa';
@@ -711,10 +835,13 @@ function abrirModalDespesa(id) {
   document.getElementById('desp_valor').value = item ? Fmt.toInput(item.valor) : '';
   document.getElementById('desp_tipo').value = item ? item.tipo : 'avista';
   document.getElementById('desp_parcelas').value = item ? (item.totalParcelas || 2) : 2;
+  document.getElementById('desp_divisao').value = item ? (item.divisao || 'individual') : 'individual';
+  if (item && item.divisao === 'individual') document.getElementById('desp_pessoa').value = item.pessoaId || '';
   document.getElementById('desp_status').value = item ? item.status : 'pendente';
   onDespesaTipoChange();
+  onDivisaoChange();
   // ao editar uma ocorrência já gerada (parcela ou recorrência), não permite mudar tipo/quantidade —
-  // só descrição, categoria, valor daquele mês específico e status
+  // só descrição, categoria, valor daquele mês específico, divisão e status
   document.getElementById('desp_tipo').disabled = !!item && (item.tipo === 'parcelada' || item.tipo === 'recorrente');
   if (item) document.getElementById('desp_parcelas_wrap').style.display = 'none';
   abrirModal('modalDespesa');
@@ -727,11 +854,14 @@ function salvarDespesa() {
   const valor = Fmt.parse(document.getElementById('desp_valor').value);
   const tipo = document.getElementById('desp_tipo').value;
   const status = document.getElementById('desp_status').value;
+  const divisao = document.getElementById('desp_divisao').value;
+  const pessoaId = divisao === 'individual' ? document.getElementById('desp_pessoa').value : null;
+  if (divisao === 'individual' && !pessoaId) { toast('Selecione quem comprou.', 'error'); return; }
   const refBase = lerRef('desp_mes', 'desp_ano');
   let registros = DB.get('despesas') || [];
 
   if (id) {
-    registros = registros.map(r => r.id === id ? { ...r, descricao, categoria, valor, ref: refBase, status } : r);
+    registros = registros.map(r => r.id === id ? { ...r, descricao, categoria, valor, ref: refBase, status, divisao, pessoaId } : r);
     DB.set('despesas', registros);
     toast('Despesa atualizada.');
   } else if (tipo === 'parcelada') {
@@ -742,7 +872,7 @@ function salvarDespesa() {
       const d = new Date(anoBase, mesBase - 1 + i, 1);
       const ref = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
       registros.push({
-        id: Fmt.uid(), descricao, categoria, valor, ref, tipo, status,
+        id: Fmt.uid(), descricao, categoria, valor, ref, tipo, status, divisao, pessoaId,
         parcelaAtual: i + 1, totalParcelas, grupoId
       });
     }
@@ -756,30 +886,76 @@ function salvarDespesa() {
       const d = new Date(anoBase, mesBase - 1 + i, 1);
       const ref = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
       registros.push({
-        id: Fmt.uid(), descricao, categoria, valor, valorPrevisto: valor, ref, tipo, status,
+        id: Fmt.uid(), descricao, categoria, valor, valorPrevisto: valor, ref, tipo, status, divisao, pessoaId,
         recorrenteId: grupoId
       });
     }
     DB.set('despesas', registros);
     toast('Despesa recorrente gerada para ' + totalMeses + ' meses. Você pode editar o valor de cada mês individualmente.');
   } else {
-    registros.push({ id: Fmt.uid(), descricao, categoria, valor, ref: refBase, tipo, status });
+    registros.push({ id: Fmt.uid(), descricao, categoria, valor, ref: refBase, tipo, status, divisao, pessoaId });
     DB.set('despesas', registros);
     toast('Despesa salva.');
   }
   fecharModal('modalDespesa');
-  renderDespesas(); renderResumo();
+  renderDespesas(); renderResumo(); renderInvestimentos();
 }
 function excluirDespesa(id) {
+  const registros = DB.get('despesas') || [];
+  const item = registros.find(r => r.id === id);
+  if (item && item.tipo === 'parcelada' && item.grupoId) {
+    const futuras = registros.filter(r => r.grupoId === item.grupoId && r.ref > item.ref);
+    if (futuras.length > 0) { abrirModalExcluirParcela(id); return; }
+  }
   if (!confirm('Excluir esta despesa?')) return;
-  DB.set('despesas', (DB.get('despesas') || []).filter(r => r.id !== id));
-  renderDespesas(); renderResumo();
+  DB.set('despesas', registros.filter(r => r.id !== id));
+  renderDespesas(); renderResumo(); renderInvestimentos();
+  toast('Despesa excluída.');
+}
+function abrirModalExcluirParcela(id) {
+  document.getElementById('excl_parcela_id').value = id;
+  const radio = document.querySelector('input[name="exclParcelaOpcao"][value="somente"]');
+  if (radio) radio.checked = true;
+  abrirModal('modalExcluirParcela');
+}
+function confirmarExclusaoParcela() {
+  const id = document.getElementById('excl_parcela_id').value;
+  const opcaoEl = document.querySelector('input[name="exclParcelaOpcao"]:checked');
+  const opcao = opcaoEl ? opcaoEl.value : 'somente';
+  let registros = DB.get('despesas') || [];
+  const item = registros.find(r => r.id === id);
+  if (!item) { fecharModal('modalExcluirParcela'); return; }
+
+  if (opcao === 'subsequentes') {
+    registros = registros.filter(r => !(r.grupoId === item.grupoId && r.ref >= item.ref));
+  } else if (opcao === 'recalcular') {
+    const parcelaExcluida = item.parcelaAtual;
+    registros = registros
+      .filter(r => r.id !== id)
+      .map(r => r.grupoId === item.grupoId
+        ? { ...r, parcelaAtual: r.parcelaAtual > parcelaExcluida ? r.parcelaAtual - 1 : r.parcelaAtual, totalParcelas: r.totalParcelas - 1 }
+        : r);
+  } else {
+    registros = registros.filter(r => r.id !== id);
+  }
+  DB.set('despesas', registros);
+  fecharModal('modalExcluirParcela');
+  renderDespesas(); renderResumo(); renderInvestimentos();
   toast('Despesa excluída.');
 }
 function alternarStatusDespesa(id) {
   const registros = (DB.get('despesas') || []).map(r => r.id === id ? { ...r, status: r.status === 'pago' ? 'pendente' : 'pago' } : r);
   DB.set('despesas', registros);
-  renderDespesas(); renderResumo();
+  renderDespesas(); renderResumo(); renderInvestimentos();
+}
+function divisaoLabel(r) {
+  if (r.divisao === 'dividida') {
+    const pessoas = DB.get('pessoas') || [];
+    const n = Math.max(1, pessoas.length);
+    return 'Dividida (' + Fmt.brl((r.valor || 0) / n) + '/pessoa)';
+  }
+  if (r.pessoaId) return pessoaTag(r.pessoaId);
+  return '—';
 }
 function renderDespesas() {
   const registros = DB.get('despesas') || [];
@@ -804,10 +980,11 @@ function renderDespesas() {
   body.innerHTML = filtrados.length ? filtrados.map(r => `<tr>
       <td>${r.descricao}</td><td>${r.categoria || '—'}</td><td>${Fmt.ref(r.ref)}</td>
       <td>${r.tipo === 'parcelada' ? r.parcelaAtual + '/' + r.totalParcelas : (r.tipo === 'recorrente' ? '🔁 Recorrente' : 'À vista')}</td>
+      <td>${divisaoLabel(r)}</td>
       <td>${Fmt.brl(r.valor)}</td>
       <td><span class="pill ${r.status === 'pago' ? 'ok' : 'pend'}" style="cursor:pointer;" onclick="alternarStatusDespesa('${r.id}')">${r.status === 'pago' ? 'Pago' : 'Pendente'}</span></td>
       <td class="row-actions"><button class="icon-btn" onclick="abrirModalDespesa('${r.id}')" title="Editar">✎</button><button class="icon-btn del" onclick="excluirDespesa('${r.id}')" title="Excluir">🗑</button></td>
-    </tr>`).join('') : '<tr class="empty-row"><td colspan="7">Nenhuma despesa encontrada.</td></tr>';
+    </tr>`).join('') : '<tr class="empty-row"><td colspan="8">Nenhuma despesa encontrada.</td></tr>';
 
   const totalGeral = filtrados.reduce((s, r) => s + (r.valor || 0), 0);
   const totalPago = filtrados.filter(r => r.status === 'pago').reduce((s, r) => s + (r.valor || 0), 0);
@@ -816,6 +993,41 @@ function renderDespesas() {
     <div class="stat-card danger"><div class="stat-label">Total de Despesas</div><div class="stat-value expense">${Fmt.brl(totalGeral)}</div><div class="stat-sub">Somado no período</div></div>
     <div class="stat-card green"><div class="stat-label">Já Pago</div><div class="stat-value income">${Fmt.brl(totalPago)}</div><div class="stat-sub">Quitado no período</div></div>
     <div class="stat-card warn"><div class="stat-label">Pendente</div><div class="stat-value neutral">${Fmt.brl(totalPendente)}</div><div class="stat-sub">A pagar no período</div></div>`;
+}
+
+/* ============================================
+   INVESTIMENTOS (despesas de categoria Reserva / Reserva de Emergência)
+============================================ */
+function renderInvestimentos() {
+  const despesas = DB.get('despesas') || [];
+  const registros = despesas.filter(r => ehInvestimento(r.categoria));
+  populaRefFiltro('filtroRefInv', registros);
+  const ref = document.getElementById('filtroRefInv').value;
+  let filtrados = registros.filter(r => (!ref || r.ref === ref) && dentroDoPeriodo(r.ref));
+  filtrados = aplicarOrdenacao('investimentos', filtrados, (r, col) => {
+    switch (col) {
+      case 'descricao': return r.descricao || '';
+      case 'valor': return r.valor || 0;
+      case 'status': return r.status || '';
+      default: return r.ref || '';
+    }
+  });
+  atualizarIconesOrdenacao('investimentos');
+  document.getElementById('invBadge').textContent = filtrados.length + ' registro' + (filtrados.length === 1 ? '' : 's');
+  const body = document.getElementById('invBody');
+  body.innerHTML = filtrados.length ? filtrados.map(r => `<tr>
+      <td>${r.descricao}</td><td>${r.categoria}</td><td>${Fmt.ref(r.ref)}</td>
+      <td style="font-weight:600;">${Fmt.brl(r.valor)}</td>
+      <td><span class="pill ${r.status === 'pago' ? 'ok' : 'pend'}">${r.status === 'pago' ? 'Realizado' : 'Pendente'}</span></td>
+      <td class="row-actions"><button class="icon-btn" onclick="abrirModalDespesa('${r.id}')" title="Editar">✎</button></td>
+    </tr>`).join('') : '<tr class="empty-row"><td colspan="6">Nenhum investimento encontrado.</td></tr>';
+
+  const total = filtrados.reduce((s, r) => s + (r.valor || 0), 0);
+  const totalRealizado = filtrados.filter(r => r.status === 'pago').reduce((s, r) => s + (r.valor || 0), 0);
+  document.getElementById('statsInvestimentos').innerHTML = `
+    <div class="stat-card blue"><div class="stat-label">Total Investido</div><div class="stat-value income">${Fmt.brl(total)}</div><div class="stat-sub">Somado no período</div></div>
+    <div class="stat-card green"><div class="stat-label">Já Realizado</div><div class="stat-value income">${Fmt.brl(totalRealizado)}</div><div class="stat-sub">Confirmado no período</div></div>
+    <div class="stat-card warn"><div class="stat-label">Lançamentos</div><div class="stat-value neutral">${filtrados.length}</div><div class="stat-sub">Registros no filtro atual</div></div>`;
 }
 
 function renovarRecorrentes() {
@@ -844,7 +1056,8 @@ function renovarRecorrentes() {
       novos.push({
         id: Fmt.uid(), descricao: ultimo.descricao, categoria: ultimo.categoria,
         valor: ultimo.valorPrevisto ?? ultimo.valor, valorPrevisto: ultimo.valorPrevisto ?? ultimo.valor,
-        ref, tipo: 'recorrente', status: 'pendente', recorrenteId: ultimo.recorrenteId
+        ref, tipo: 'recorrente', status: 'pendente', recorrenteId: ultimo.recorrenteId,
+        divisao: ultimo.divisao, pessoaId: ultimo.pessoaId
       });
       i++;
       d = new Date(anoU, mesU - 1 + i, 1);
@@ -852,7 +1065,7 @@ function renovarRecorrentes() {
   });
   if (novos.length) {
     DB.set('despesas', [...registros, ...novos]);
-    renderDespesas(); renderResumo();
+    renderDespesas(); renderResumo(); renderInvestimentos();
     toast(novos.length + ' mês(es) gerado(s) para despesas recorrentes.');
   } else {
     toast('Nenhuma despesa recorrente precisa de renovação agora.');
@@ -866,27 +1079,30 @@ function renderResumo() {
   const salarios = DB.get('salarios') || [];
   const vr = DB.get('valeRefeicao') || [];
   const extras = DB.get('extras') || [];
+  const entradasTerceiros = DB.get('entradas') || [];
   const despesas = DB.get('despesas') || [];
   const pessoas = DB.get('pessoas') || [];
 
-  const todasRefs = [...new Set([...salarios, ...vr, ...extras, ...despesas].map(r => r.ref))];
+  const todasRefs = [...new Set([...salarios, ...vr, ...extras, ...entradasTerceiros, ...despesas].map(r => r.ref))];
   populaRefFiltro('filtroRefResumo', todasRefs.map(ref => ({ ref })));
   const ref = document.getElementById('filtroRefResumo').value;
 
   const fS = salarios.filter(r => (!ref || r.ref === ref) && dentroDoPeriodo(r.ref));
   const fV = vr.filter(r => (!ref || r.ref === ref) && dentroDoPeriodo(r.ref));
   const fE = extras.filter(r => (!ref || r.ref === ref) && dentroDoPeriodo(r.ref));
+  const fEnt = entradasTerceiros.filter(r => (!ref || r.ref === ref) && dentroDoPeriodo(r.ref));
   const fD = despesas.filter(r => (!ref || r.ref === ref) && dentroDoPeriodo(r.ref));
 
   const totalSal = fS.reduce((s, r) => s + (r.adiantamento || 0) + (r.pagamento || 0), 0);
   const totalVr = fV.reduce((s, r) => s + (r.recebido || 0), 0);
   const totalExt = fE.reduce((s, r) => s + (r.liquido || 0), 0);
-  const totalEntradas = totalSal + totalVr + totalExt;
+  const totalEnt = fEnt.reduce((s, r) => s + (r.valor || 0), 0);
+  const totalEntradas = totalSal + totalVr + totalExt + totalEnt;
   const totalDespesas = fD.reduce((s, r) => s + (r.valor || 0), 0);
   const saldo = totalEntradas - totalDespesas;
 
   document.getElementById('statsResumoGeral').innerHTML = `
-    <div class="stat-card green"><div class="stat-label">Total de Entradas</div><div class="stat-value income">${Fmt.brl(totalEntradas)}</div><div class="stat-sub">Salários + VR + Extras</div></div>
+    <div class="stat-card green"><div class="stat-label">Total de Entradas</div><div class="stat-value income">${Fmt.brl(totalEntradas)}</div><div class="stat-sub">Salários + VR + Extras + Entradas</div></div>
     <div class="stat-card danger"><div class="stat-label">Total de Despesas</div><div class="stat-value expense">${Fmt.brl(totalDespesas)}</div><div class="stat-sub">Todas as despesas do período</div></div>
     <div class="stat-card blue"><div class="stat-label">Saldo do Casal</div><div class="stat-value ${saldo >= 0 ? 'income' : 'expense'}">${Fmt.brl(saldo)}</div><div class="stat-sub">Entradas − Despesas</div></div>`;
 
@@ -895,8 +1111,9 @@ function renderResumo() {
     const s = fS.filter(r => r.pessoaId === p.id).reduce((s, r) => s + (r.adiantamento || 0) + (r.pagamento || 0), 0);
     const v = fV.filter(r => r.pessoaId === p.id).reduce((s, r) => s + (r.recebido || 0), 0);
     const e = fE.filter(r => r.pessoaId === p.id).reduce((s, r) => s + (r.liquido || 0), 0);
-    return `<tr><td>${pessoaTag(p.id)}</td><td>${Fmt.brl(s)}</td><td>${Fmt.brl(v)}</td><td>${Fmt.brl(e)}</td><td style="font-weight:700;color:${corMonetaria(s + v + e)};">${Fmt.brl(s + v + e)}</td></tr>`;
-  }).join('') || '<tr class="empty-row"><td colspan="5">Nenhuma pessoa cadastrada.</td></tr>';
+    const en = fEnt.filter(r => r.pessoaId === p.id).reduce((s, r) => s + (r.valor || 0), 0);
+    return `<tr><td>${pessoaTag(p.id)}</td><td>${Fmt.brl(s)}</td><td>${Fmt.brl(v)}</td><td>${Fmt.brl(e)}</td><td>${Fmt.brl(en)}</td><td style="font-weight:700;color:${corMonetaria(s + v + e + en)};">${Fmt.brl(s + v + e + en)}</td></tr>`;
+  }).join('') || '<tr class="empty-row"><td colspan="6">Nenhuma pessoa cadastrada.</td></tr>';
 
   const categorias = DB.get('categoriasDespesa') || [];
   const bodyCat = document.getElementById('resumoCatBody');
@@ -1012,14 +1229,18 @@ function renderAll() {
   renderSalarios();
   renderVR();
   renderExtras();
+  renderEntradas();
   renderDespesas();
+  renderInvestimentos();
   renderResumo();
   renderConfiguracao();
 }
 RENDER_POR_TABELA.salarios = renderSalarios;
 RENDER_POR_TABELA.vr = renderVR;
 RENDER_POR_TABELA.extras = renderExtras;
+RENDER_POR_TABELA.entradas = renderEntradas;
 RENDER_POR_TABELA.despesas = renderDespesas;
+RENDER_POR_TABELA.investimentos = renderInvestimentos;
 
 /* ============================================
    START
