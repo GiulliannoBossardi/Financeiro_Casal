@@ -911,22 +911,73 @@ function onDespesaTipoChange() {
 function onDivisaoChange() {
   const divisao = document.getElementById('desp_divisao').value;
   document.getElementById('desp_pessoa_wrap').style.display = divisao === 'individual' ? 'block' : 'none';
-  atualizarHintDivisao();
+  document.getElementById('desp_modo_divisao_wrap').style.display = divisao === 'dividida' ? 'block' : 'none';
+  if (divisao === 'dividida') {
+    onModoDivisaoChange();
+  } else {
+    document.getElementById('desp_splits_wrap').style.display = 'none';
+    document.getElementById('desp_valor').readOnly = false;
+    document.getElementById('desp_divisao_hint').style.display = 'none';
+  }
+}
+function onModoDivisaoChange() {
+  const modo = document.getElementById('desp_modo_divisao').value;
+  const valorInput = document.getElementById('desp_valor');
+  if (modo === 'personalizado') {
+    document.getElementById('desp_splits_wrap').style.display = 'block';
+    valorInput.readOnly = true;
+    renderSplitsDivisao(_despSplitsEdicao);
+  } else {
+    document.getElementById('desp_splits_wrap').style.display = 'none';
+    valorInput.readOnly = false;
+    atualizarHintDivisao();
+  }
+}
+function renderSplitsDivisao(valoresIniciais) {
+  const pessoas = DB.get('pessoas') || [];
+  const totalAtual = Fmt.parse(document.getElementById('desp_valor').value) || 0;
+  const cont = document.getElementById('desp_splits_lista');
+  cont.innerHTML = pessoas.map(p => `
+    <div class="form-row full"><div><label>${p.nome}</label><input type="text" inputmode="decimal" class="money-input" id="desp_split_${p.id}" placeholder="0,00"/></div></div>`).join('');
+  cont.querySelectorAll('.money-input').forEach(el => {
+    el.addEventListener('input', formatarInputMoeda);
+    el.addEventListener('paste', () => setTimeout(() => formatarInputMoeda({ target: el }), 0));
+    el.addEventListener('input', atualizarSomaSplits);
+  });
+  pessoas.forEach(p => {
+    const el = document.getElementById('desp_split_' + p.id);
+    const inicial = (valoresIniciais && typeof valoresIniciais[p.id] === 'number') ? valoresIniciais[p.id] : (totalAtual / Math.max(1, pessoas.length));
+    el.value = Fmt.toInput(inicial);
+  });
+  atualizarSomaSplits();
+}
+function atualizarSomaSplits() {
+  const pessoas = DB.get('pessoas') || [];
+  let soma = 0;
+  pessoas.forEach(p => {
+    const el = document.getElementById('desp_split_' + p.id);
+    if (el) soma += Fmt.parse(el.value);
+  });
+  document.getElementById('desp_valor').value = Fmt.toInput(soma);
+  document.getElementById('desp_divisao_hint_text').textContent = 'Valor total calculado a partir da divisão personalizada: ' + Fmt.brl(soma) + '.';
+  document.getElementById('desp_divisao_hint').style.display = 'block';
 }
 function atualizarHintDivisao() {
   const divisao = document.getElementById('desp_divisao').value;
+  const modo = document.getElementById('desp_modo_divisao').value;
   const hint = document.getElementById('desp_divisao_hint');
   const hintText = document.getElementById('desp_divisao_hint_text');
-  if (divisao === 'dividida') {
+  if (divisao === 'dividida' && modo === 'igual') {
     const pessoas = DB.get('pessoas') || [];
     const n = Math.max(1, pessoas.length);
     const valor = Fmt.parse(document.getElementById('desp_valor').value);
     hintText.textContent = 'Cada pessoa fica com ' + Fmt.brl(valor / n) + ' (dividido entre ' + n + (n === 1 ? ' pessoa' : ' pessoas') + ').';
     hint.style.display = 'block';
-  } else {
+  } else if (divisao !== 'dividida') {
     hint.style.display = 'none';
   }
 }
+let _despSplitsEdicao = null;
 function abrirModalDespesa(id) {
   populaCategoriaSelect('desp_categoria', false);
   populaPessoaSelect('desp_pessoa', false);
@@ -942,6 +993,8 @@ function abrirModalDespesa(id) {
   document.getElementById('desp_parcelas').value = item ? (item.totalParcelas || 2) : 2;
   document.getElementById('desp_divisao').value = item ? (item.divisao || 'individual') : 'individual';
   if (item && item.divisao === 'individual') document.getElementById('desp_pessoa').value = item.pessoaId || '';
+  _despSplitsEdicao = (item && item.divisao === 'dividida' && item.splits) ? item.splits : null;
+  document.getElementById('desp_modo_divisao').value = _despSplitsEdicao ? 'personalizado' : 'igual';
   document.getElementById('desp_status').value = item ? item.status : 'pendente';
   onDespesaTipoChange();
   onDivisaoChange();
@@ -956,17 +1009,23 @@ function salvarDespesa() {
   const descricao = document.getElementById('desp_descricao').value.trim();
   if (!descricao) { toast('Informe a descrição da despesa.', 'error'); return; }
   const categoria = document.getElementById('desp_categoria').value;
-  const valor = Fmt.parse(document.getElementById('desp_valor').value);
   const tipo = document.getElementById('desp_tipo').value;
   const status = document.getElementById('desp_status').value;
   const divisao = document.getElementById('desp_divisao').value;
   const pessoaId = divisao === 'individual' ? document.getElementById('desp_pessoa').value : null;
   if (divisao === 'individual' && !pessoaId) { toast('Selecione quem comprou.', 'error'); return; }
+  let splits = null;
+  if (divisao === 'dividida' && document.getElementById('desp_modo_divisao').value === 'personalizado') {
+    const pessoas = DB.get('pessoas') || [];
+    splits = {};
+    pessoas.forEach(p => { splits[p.id] = Fmt.parse(document.getElementById('desp_split_' + p.id).value); });
+  }
+  const valor = Fmt.parse(document.getElementById('desp_valor').value);
   const refBase = lerRef('desp_mes', 'desp_ano');
   let registros = DB.get('despesas') || [];
 
   if (id) {
-    registros = registros.map(r => r.id === id ? { ...r, descricao, categoria, valor, ref: refBase, status, divisao, pessoaId } : r);
+    registros = registros.map(r => r.id === id ? { ...r, descricao, categoria, valor, ref: refBase, status, divisao, pessoaId, splits } : r);
     DB.set('despesas', registros);
     toast('Despesa atualizada.');
   } else if (tipo === 'parcelada') {
@@ -977,7 +1036,7 @@ function salvarDespesa() {
       const d = new Date(anoBase, mesBase - 1 + i, 1);
       const ref = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
       registros.push({
-        id: Fmt.uid(), descricao, categoria, valor, ref, tipo, status, divisao, pessoaId,
+        id: Fmt.uid(), descricao, categoria, valor, ref, tipo, status, divisao, pessoaId, splits: splits ? { ...splits } : null,
         parcelaAtual: i + 1, totalParcelas, grupoId
       });
     }
@@ -991,14 +1050,14 @@ function salvarDespesa() {
       const d = new Date(anoBase, mesBase - 1 + i, 1);
       const ref = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
       registros.push({
-        id: Fmt.uid(), descricao, categoria, valor, valorPrevisto: valor, ref, tipo, status, divisao, pessoaId,
+        id: Fmt.uid(), descricao, categoria, valor, valorPrevisto: valor, ref, tipo, status, divisao, pessoaId, splits: splits ? { ...splits } : null,
         recorrenteId: grupoId
       });
     }
     DB.set('despesas', registros);
     toast('Despesa recorrente gerada para ' + totalMeses + ' meses. Você pode editar o valor de cada mês individualmente.');
   } else {
-    registros.push({ id: Fmt.uid(), descricao, categoria, valor, ref: refBase, tipo, status, divisao, pessoaId });
+    registros.push({ id: Fmt.uid(), descricao, categoria, valor, ref: refBase, tipo, status, divisao, pessoaId, splits });
     DB.set('despesas', registros);
     toast('Despesa salva.');
   }
@@ -1077,6 +1136,9 @@ function alternarStatusDespesa(id) {
 function divisaoLabel(r) {
   if (r.divisao === 'dividida') {
     const pessoas = DB.get('pessoas') || [];
+    if (r.splits) {
+      return 'Dividida (' + pessoas.map(p => `${p.nome}: ${Fmt.brl(r.splits[p.id] || 0)}`).join(' / ') + ')';
+    }
     const n = Math.max(1, pessoas.length);
     return 'Dividida (' + Fmt.brl((r.valor || 0) / n) + '/pessoa)';
   }
@@ -1131,11 +1193,14 @@ function renderDespesas() {
 
   const pessoasCasal = DB.get('pessoas') || [];
   const n = Math.max(1, pessoasCasal.length);
-  const totalDividido = filtrados.filter(r => r.divisao === 'dividida').reduce((s, r) => s + (r.valor || 0), 0);
-  const parteDividida = totalDividido / n;
+  const dividedRecords = filtrados.filter(r => r.divisao === 'dividida');
   statsHtml += pessoasCasal.map(p => {
     const totalIndividual = filtrados.filter(r => r.divisao === 'individual' && r.pessoaId === p.id).reduce((s, r) => s + (r.valor || 0), 0);
-    const totalPessoa = totalIndividual + parteDividida;
+    const totalDivididoPessoa = dividedRecords.reduce((s, r) => {
+      if (r.splits && typeof r.splits[p.id] === 'number') return s + r.splits[p.id];
+      return s + (r.valor || 0) / n;
+    }, 0);
+    const totalPessoa = totalIndividual + totalDivididoPessoa;
     return `
     <div class="stat-card blue"><div class="stat-label">Soma de Divisão ${p.nome}</div><div class="stat-value neutral">${Fmt.brl(totalPessoa)}</div><div class="stat-sub">Individual + parte das divididas</div></div>`;
   }).join('');
