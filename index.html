@@ -376,6 +376,16 @@
   <div class="modal-footer"><button class="btn" onclick="fecharModal('modalExcluirParcela')">Cancelar</button><button class="btn btn-primary" onclick="confirmarExclusaoParcela()">Excluir</button></div>
 </div></div>
 
+<div class="modal-overlay" id="modalMarcarCartao"><div class="modal">
+  <div class="modal-header"><div class="modal-title">Marcar Cartão do Mês como Pago</div><button class="modal-close" onclick="fecharModal('modalMarcarCartao')">✕</button></div>
+  <div class="modal-body">
+    <input type="hidden" id="mc_ref"/>
+    <p style="margin:0 0 14px;">Qual cartão deseja marcar como pago em <strong id="mc_ref_label"></strong>?</p>
+    <div class="form-row full"><div><label>Cartão</label><select id="mc_categoria"></select></div></div>
+  </div>
+  <div class="modal-footer"><button class="btn" onclick="fecharModal('modalMarcarCartao')">Cancelar</button><button class="btn btn-primary" onclick="confirmarMarcarCartao()">Marcar como Pago</button></div>
+</div></div>
+
 <div class="modal-overlay" id="modalEntrada"><div class="modal">
   <div class="modal-header"><div class="modal-title" id="tituloModalEntrada">Nova Entrada</div><button class="modal-close" onclick="fecharModal('modalEntrada')">✕</button></div>
   <div class="modal-body">

@@ -69,13 +69,15 @@ const DB = {
     if (!this.get('extras')) this.set('extras', []);
     if (!this.get('despesas')) this.set('despesas', []);
     if (!this.get('entradas')) this.set('entradas', []);
-    if (!this.get('categoriasDespesa')) this.set('categoriasDespesa', ['Moradia', 'Alimentação', 'Transporte', 'Saúde', 'Lazer', 'Cartão de Crédito', 'Reserva de Emergência', 'Outros']);
+    if (!this.get('categoriasDespesa')) this.set('categoriasDespesa', ['Moradia', 'Alimentação', 'Transporte', 'Saúde', 'Lazer', 'Cartão Sicredi', 'Cartão Nubank', 'Reserva de Emergência', 'Outros']);
     else {
       let cats = this.get('categoriasDespesa');
       const temReserva = cats.some(c => normalizarTexto(c) === 'reserva de emergencia' || normalizarTexto(c) === 'reserva');
       if (!temReserva) cats = [...cats, 'Reserva de Emergência'];
-      const temCartao = cats.some(c => normalizarTexto(c) === 'cartao de credito');
-      if (!temCartao) cats = [...cats, 'Cartão de Crédito'];
+      const temSicredi = cats.some(c => normalizarTexto(c) === 'cartao sicredi');
+      if (!temSicredi) cats = [...cats, 'Cartão Sicredi'];
+      const temNubank = cats.some(c => normalizarTexto(c) === 'cartao nubank');
+      if (!temNubank) cats = [...cats, 'Cartão Nubank'];
       this.set('categoriasDespesa', cats);
     }
     if (!this.get('tiposExtra')) this.set('tiposExtra', ['Hora Extra', 'Bônus', 'PLR', 'Comissão', 'Outro']);
@@ -100,7 +102,7 @@ function ehInvestimento(categoria) {
   return c === 'reserva' || c === 'reserva de emergencia';
 }
 function ehCartaoCredito(categoria) {
-  return normalizarTexto(categoria) === 'cartao de credito';
+  return normalizarTexto(categoria).includes('cartao');
 }
 
 /* ============================================
@@ -888,12 +890,19 @@ function renderEntradas() {
 ============================================ */
 function onDespesaTipoChange() {
   const tipo = document.getElementById('desp_tipo').value;
+  const editando = !!document.getElementById('desp_id').value;
   const wrap = document.getElementById('desp_parcelas_wrap');
   const label = document.getElementById('desp_parcelas_label');
   const hint = document.getElementById('desp_valor_hint');
   const valorLabel = document.getElementById('desp_valor_label');
   const parcelasInput = document.getElementById('desp_parcelas');
-  if (tipo === 'parcelada') {
+  if (editando) {
+    // Ao editar um lançamento já existente, o tipo pode ser trocado livremente,
+    // mas a quantidade de parcelas/meses não se aplica a um registro já gerado.
+    wrap.style.display = 'none';
+    hint.style.display = tipo === 'recorrente' ? 'block' : 'none';
+    valorLabel.textContent = tipo === 'recorrente' ? 'Valor Previsto (R$)' : 'Valor (R$)';
+  } else if (tipo === 'parcelada') {
     wrap.style.display = 'block';
     label.textContent = 'Total de Parcelas';
     parcelasInput.min = 2;
@@ -1003,10 +1012,6 @@ function abrirModalDespesa(id) {
   document.getElementById('desp_status').value = item ? item.status : 'pendente';
   onDespesaTipoChange();
   onDivisaoChange();
-  // ao editar uma ocorrência já gerada (parcela ou recorrência), não permite mudar tipo/quantidade —
-  // só descrição, categoria, valor daquele mês específico, divisão e status
-  document.getElementById('desp_tipo').disabled = !!item && (item.tipo === 'parcelada' || item.tipo === 'recorrente');
-  if (item) document.getElementById('desp_parcelas_wrap').style.display = 'none';
   abrirModal('modalDespesa');
 }
 function salvarDespesa() {
@@ -1030,9 +1035,24 @@ function salvarDespesa() {
   let registros = DB.get('despesas') || [];
 
   if (id) {
-    registros = registros.map(r => r.id === id ? { ...r, descricao, categoria, valor, ref: refBase, status, divisao, pessoaId, splits } : r);
-    DB.set('despesas', registros);
-    toast('Despesa atualizada.');
+    const itemAntigo = registros.find(r => r.id === id);
+    const mudouCategoriaParaCartao = itemAntigo && itemAntigo.categoria !== categoria && ehCartaoCredito(categoria);
+    const fazParteDeGrupo = itemAntigo && (itemAntigo.tipo === 'parcelada' || itemAntigo.tipo === 'recorrente');
+    if (mudouCategoriaParaCartao && fazParteDeGrupo) {
+      const grupoField = itemAntigo.tipo === 'recorrente' ? 'recorrenteId' : 'grupoId';
+      const grupoValor = itemAntigo[grupoField];
+      registros = registros.map(r => {
+        if (r.id === id) return { ...r, descricao, categoria, valor, ref: refBase, tipo, status, divisao, pessoaId, splits };
+        if (grupoValor && r[grupoField] === grupoValor && r.ref >= itemAntigo.ref) return { ...r, categoria };
+        return r;
+      });
+      DB.set('despesas', registros);
+      toast('Despesa atualizada. Categoria alterada para "' + categoria + '" nesta e nas parcelas/meses seguintes.');
+    } else {
+      registros = registros.map(r => r.id === id ? { ...r, descricao, categoria, valor, ref: refBase, tipo, status, divisao, pessoaId, splits } : r);
+      DB.set('despesas', registros);
+      toast('Despesa atualizada.');
+    }
   } else if (tipo === 'parcelada') {
     const totalParcelas = Math.max(2, parseInt(document.getElementById('desp_parcelas').value) || 2);
     const grupoId = Fmt.uid();
@@ -1267,17 +1287,32 @@ function renderComparativoCategorias() {
     : '<p style="color:var(--text-muted,#888);font-size:.85rem;margin:0;">Nenhuma despesa no período selecionado.</p>';
 }
 
+function categoriasCartao() {
+  return (DB.get('categoriasDespesa') || []).filter(ehCartaoCredito);
+}
 function marcarCartaoComoPago() {
   const ref = document.getElementById('filtroRefDesp').value;
   if (!ref) { toast('Selecione um Mês/Ano específico no filtro para marcar o cartão daquele mês como pago.', 'error'); return; }
+  const cartoes = categoriasCartao();
+  if (!cartoes.length) { toast('Nenhuma categoria de cartão cadastrada. Cadastre em Configuração (ex: "Cartão Sicredi", "Cartão Nubank").', 'error'); return; }
+  document.getElementById('mc_ref').value = ref;
+  document.getElementById('mc_ref_label').textContent = Fmt.ref(ref);
+  document.getElementById('mc_categoria').innerHTML = cartoes.map(c => `<option value="${c}">${c}</option>`).join('');
+  abrirModal('modalMarcarCartao');
+}
+function confirmarMarcarCartao() {
+  const ref = document.getElementById('mc_ref').value;
+  const categoria = document.getElementById('mc_categoria').value;
+  if (!ref || !categoria) { fecharModal('modalMarcarCartao'); return; }
   const registros = DB.get('despesas') || [];
-  const alvo = registros.filter(r => r.ref === ref && ehCartaoCredito(r.categoria) && r.status !== 'pago');
-  if (!alvo.length) { toast('Nenhuma despesa pendente de Cartão de Crédito encontrada para ' + Fmt.ref(ref) + '.', 'error'); return; }
-  if (!confirm('Marcar ' + alvo.length + ' despesa(s) de Cartão de Crédito de ' + Fmt.ref(ref) + ' como pagas?')) return;
-  const atualizados = registros.map(r => (r.ref === ref && ehCartaoCredito(r.categoria) && r.status !== 'pago') ? { ...r, status: 'pago' } : r);
+  const alvo = registros.filter(r => r.ref === ref && r.categoria === categoria && r.status !== 'pago');
+  if (!alvo.length) { toast('Nenhuma despesa pendente de ' + categoria + ' encontrada para ' + Fmt.ref(ref) + '.', 'error'); fecharModal('modalMarcarCartao'); return; }
+  if (!confirm('Marcar ' + alvo.length + ' despesa(s) de ' + categoria + ' de ' + Fmt.ref(ref) + ' como pagas?')) return;
+  const atualizados = registros.map(r => (r.ref === ref && r.categoria === categoria && r.status !== 'pago') ? { ...r, status: 'pago' } : r);
   DB.set('despesas', atualizados);
+  fecharModal('modalMarcarCartao');
   renderDespesas(); renderResumo(); renderInvestimentos(); renderComparativoCategorias();
-  toast(alvo.length + ' despesa(s) de Cartão de Crédito marcada(s) como pagas.');
+  toast(alvo.length + ' despesa(s) de ' + categoria + ' marcada(s) como pagas.');
 }
 
 /* ============================================
