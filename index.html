@@ -89,10 +89,10 @@
       <!-- ═══ SALÁRIOS ═══ -->
       <div class="tab-panel active" id="tab-salarios">
         <div class="filter-bar">
-          <label>Mês/Ano:</label><select id="filtroRefSal" onchange="renderSalarios()" style="width:170px;"><option value="">Todos os períodos</option></select>
+          <label>Mês/Ano:</label><select id="filtroRefSal" onchange="onFiltroRefGlobalChange(this.value)" style="width:170px;"><option value="">Todos os períodos</option></select>
           <div class="filter-sep"></div>
           <label>Pessoa:</label><select id="filtroPessoaSal" onchange="renderSalarios()" style="width:150px;"></select>
-          <button class="filter-clear" onclick="document.getElementById('filtroRefSal').value='';document.getElementById('filtroPessoaSal').value='';renderSalarios();">✕ Limpar</button>
+          <button class="filter-clear" onclick="document.getElementById('filtroPessoaSal').value='';onFiltroRefGlobalChange('');">✕ Limpar</button>
         </div>
         <div class="grid-3 mb-20" id="statsSalarios"></div>
         <div class="card">
@@ -112,10 +112,10 @@
       <!-- ═══ VALE REFEIÇÃO ═══ -->
       <div class="tab-panel" id="tab-valerefeicao">
         <div class="filter-bar">
-          <label>Mês/Ano:</label><select id="filtroRefVr" onchange="renderVR()" style="width:170px;"><option value="">Todos os períodos</option></select>
+          <label>Mês/Ano:</label><select id="filtroRefVr" onchange="onFiltroRefGlobalChange(this.value)" style="width:170px;"><option value="">Todos os períodos</option></select>
           <div class="filter-sep"></div>
           <label>Pessoa:</label><select id="filtroPessoaVr" onchange="renderVR()" style="width:150px;"></select>
-          <button class="filter-clear" onclick="document.getElementById('filtroRefVr').value='';document.getElementById('filtroPessoaVr').value='';renderVR();">✕ Limpar</button>
+          <button class="filter-clear" onclick="document.getElementById('filtroPessoaVr').value='';onFiltroRefGlobalChange('');">✕ Limpar</button>
         </div>
         <div class="grid-3 mb-20" id="statsVR"></div>
         <div class="card">
@@ -136,10 +136,10 @@
       <!-- ═══ EXTRAS ═══ -->
       <div class="tab-panel" id="tab-extras">
         <div class="filter-bar">
-          <label>Mês/Ano:</label><select id="filtroRefExt" onchange="renderExtras()" style="width:170px;"><option value="">Todos os períodos</option></select>
+          <label>Mês/Ano:</label><select id="filtroRefExt" onchange="onFiltroRefGlobalChange(this.value)" style="width:170px;"><option value="">Todos os períodos</option></select>
           <div class="filter-sep"></div>
           <label>Pessoa:</label><select id="filtroPessoaExt" onchange="renderExtras()" style="width:150px;"></select>
-          <button class="filter-clear" onclick="document.getElementById('filtroRefExt').value='';document.getElementById('filtroPessoaExt').value='';renderExtras();">✕ Limpar</button>
+          <button class="filter-clear" onclick="document.getElementById('filtroPessoaExt').value='';onFiltroRefGlobalChange('');">✕ Limpar</button>
         </div>
         <div class="grid-3 mb-20" id="statsExtras"></div>
         <div class="card">
@@ -158,12 +158,12 @@
       <!-- ═══ ENTRADAS (terceiros) ═══ -->
       <div class="tab-panel" id="tab-entradas">
         <div class="filter-bar">
-          <label>Mês/Ano:</label><select id="filtroRefEnt" onchange="renderEntradas()" style="width:170px;"><option value="">Todos os períodos</option></select>
+          <label>Mês/Ano:</label><select id="filtroRefEnt" onchange="onFiltroRefGlobalChange(this.value)" style="width:170px;"><option value="">Todos os períodos</option></select>
           <div class="filter-sep"></div>
           <label>Pessoa:</label><select id="filtroPessoaEnt" onchange="renderEntradas()" style="width:150px;"></select>
           <div class="filter-sep"></div>
           <label>Status:</label><select id="filtroStatusEnt" onchange="renderEntradas()" style="width:130px;"><option value="">Todos</option><option value="pendente">Pendente</option><option value="recebido">Recebido</option></select>
-          <button class="filter-clear" onclick="document.getElementById('filtroRefEnt').value='';document.getElementById('filtroPessoaEnt').value='';document.getElementById('filtroStatusEnt').value='';document.getElementById('filtroOrigemEnt').value='';renderEntradas();">✕ Limpar</button>
+          <button class="filter-clear" onclick="document.getElementById('filtroPessoaEnt').value='';document.getElementById('filtroStatusEnt').value='';document.getElementById('filtroOrigemEnt').value='';onFiltroRefGlobalChange('');">✕ Limpar</button>
         </div>
         <div class="grid-3 mb-20" id="statsEntradas"></div>
         <div class="card">
@@ -187,10 +187,10 @@
       <!-- ═══ DESPESAS ═══ -->
       <div class="tab-panel" id="tab-despesas">
         <div class="filter-bar">
-          <label>Mês/Ano:</label><select id="filtroRefDesp" onchange="renderDespesas()" style="width:170px;"><option value="">Todos os períodos</option></select>
+          <label>Mês/Ano:</label><select id="filtroRefDesp" onchange="onFiltroRefGlobalChange(this.value)" style="width:170px;"><option value="">Todos os períodos</option></select>
           <div class="filter-sep"></div>
           <label>Status:</label><select id="filtroStatusDesp" onchange="renderDespesas()" style="width:130px;"><option value="">Todos</option><option value="pendente">Pendente</option><option value="pago">Pago</option></select>
-          <button class="filter-clear" onclick="document.getElementById('filtroRefDesp').value='';document.getElementById('filtroStatusDesp').value='';document.getElementById('filtroDivisaoDesp').value='';document.getElementById('filtroCatDesp').value='';document.getElementById('filtroDescDesp').value='';renderDespesas();">✕ Limpar</button>
+          <button class="filter-clear" onclick="document.getElementById('filtroStatusDesp').value='';document.getElementById('filtroDivisaoDesp').value='';document.getElementById('filtroCatDesp').value='';document.getElementById('filtroDescDesp').value='';onFiltroRefGlobalChange('');">✕ Limpar</button>
         </div>
         <div class="grid-3 mb-20" id="statsDespesas"></div>
         <div class="card">
@@ -215,13 +215,23 @@
             <th class="no-sort">Ações</th>
           </tr></thead><tbody id="despBody"></tbody></table></div>
         </div>
+
+        <div class="card mb-20" style="margin-top:20px;">
+          <div class="card-header"><div class="card-title">📊 Comparativo por Categoria (Mês a Mês)</div></div>
+          <div class="filter-bar" style="margin:0 16px 14px;box-shadow:none;">
+            <label>De:</label><select id="compCatDe" onchange="renderComparativoCategorias()" style="width:150px;"></select>
+            <label>Até:</label><select id="compCatAte" onchange="renderComparativoCategorias()" style="width:150px;"></select>
+          </div>
+          <p style="padding:0 16px 12px;color:var(--text-muted,#888);font-size:.85rem;">Cada linha é uma categoria; cada coluna, um mês do período escolhido acima. A última coluna soma o total acumulado da categoria nesse período.</p>
+          <div class="table-wrap"><table><thead id="compCatThead"></thead><tbody id="compCatBody"></tbody></table></div>
+        </div>
       </div>
 
       <!-- ═══ INVESTIMENTOS ═══ -->
       <div class="tab-panel" id="tab-investimentos">
         <div class="filter-bar">
-          <label>Mês/Ano:</label><select id="filtroRefInv" onchange="renderInvestimentos()" style="width:170px;"><option value="">Todos os períodos</option></select>
-          <button class="filter-clear" onclick="document.getElementById('filtroRefInv').value='';renderInvestimentos();">✕ Limpar</button>
+          <label>Mês/Ano:</label><select id="filtroRefInv" onchange="onFiltroRefGlobalChange(this.value)" style="width:170px;"><option value="">Todos os períodos</option></select>
+          <button class="filter-clear" onclick="onFiltroRefGlobalChange('');">✕ Limpar</button>
         </div>
         <div class="grid-3 mb-20" id="statsInvestimentos"></div>
         <div class="card">
@@ -241,7 +251,7 @@
       <!-- ═══ RESUMO ═══ -->
       <div class="tab-panel" id="tab-resumo">
         <div class="filter-bar">
-          <label>Mês/Ano:</label><select id="filtroRefResumo" onchange="renderResumo()" style="width:170px;"><option value="">Todos os períodos</option></select>
+          <label>Mês/Ano:</label><select id="filtroRefResumo" onchange="onFiltroRefGlobalChange(this.value)" style="width:170px;"><option value="">Todos os períodos</option></select>
         </div>
         <div class="grid-3 mb-20" id="statsResumoGeral"></div>
         <div class="card mb-20">

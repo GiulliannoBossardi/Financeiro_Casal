@@ -436,19 +436,24 @@ function populaTipoExtraSelect(selId) {
   const tipos = DB.get('tiposExtra') || [];
   document.getElementById(selId).innerHTML = tipos.map(t => `<option value="${t}">${t}</option>`).join('');
 }
+let filtroRefGlobal = '';
+let _refGlobalInicializado = false;
+function onFiltroRefGlobalChange(valor) {
+  filtroRefGlobal = valor;
+  renderAll();
+}
 function populaRefFiltro(selId, registros) {
   const sel = document.getElementById(selId);
-  const atual = sel.value;
   const refs = [...new Set(registros.map(r => r.ref))].sort(); // do mais antigo para o mais novo
   sel.innerHTML = '<option value="">Todos os períodos</option>' + refs.map(r => `<option value="${r}">${Fmt.ref(r)}</option>`).join('');
-  if (refs.includes(atual)) {
-    sel.value = atual;
-  } else if (!sel.dataset.inicializado) {
+  if (!_refGlobalInicializado) {
     const hoje = new Date();
-    const refAtual = hoje.getFullYear() + '-' + String(hoje.getMonth() + 1).padStart(2, '0');
-    if (refs.includes(refAtual)) sel.value = refAtual;
+    filtroRefGlobal = hoje.getFullYear() + '-' + String(hoje.getMonth() + 1).padStart(2, '0');
+    _refGlobalInicializado = true;
   }
-  sel.dataset.inicializado = '1';
+  // Filtro de Mês/Ano compartilhado entre todas as abas: se o valor global não existir
+  // entre as opções desta aba específica, o <select> naturalmente cai em "Todos os períodos".
+  sel.value = filtroRefGlobal;
 }
 function pessoaNome(id) { const p = (DB.get('pessoas') || []).find(p => p.id === id); return p ? p.nome : '—'; }
 function pessoaCor(id) { const p = (DB.get('pessoas') || []).find(p => p.id === id); return p ? p.cor : '#888'; }
@@ -1206,6 +1211,41 @@ function renderDespesas() {
   }).join('');
 
   document.getElementById('statsDespesas').innerHTML = statsHtml;
+  renderComparativoCategorias();
+}
+
+function renderComparativoCategorias() {
+  const despesas = DB.get('despesas') || [];
+  const categorias = DB.get('categoriasDespesa') || [];
+  const refsTodas = [...new Set(despesas.map(r => r.ref))].sort(); // mais antigo -> mais novo
+
+  const selDe = document.getElementById('compCatDe');
+  const selAte = document.getElementById('compCatAte');
+  const atualDe = selDe.value;
+  const atualAte = selAte.value;
+  const optsHtml = refsTodas.map(r => `<option value="${r}">${Fmt.ref(r)}</option>`).join('');
+  selDe.innerHTML = optsHtml;
+  selAte.innerHTML = optsHtml;
+  selDe.value = refsTodas.includes(atualDe) ? atualDe : (refsTodas[0] || '');
+  selAte.value = refsTodas.includes(atualAte) ? atualAte : (refsTodas[refsTodas.length - 1] || '');
+
+  const de = selDe.value;
+  const ate = selAte.value;
+  const mesesNoIntervalo = refsTodas.filter(r => (!de || r >= de) && (!ate || r <= ate));
+
+  const thead = document.getElementById('compCatThead');
+  thead.innerHTML = '<tr><th>Categoria</th>' + mesesNoIntervalo.map(m => `<th>${Fmt.ref(m)}</th>`).join('') + '<th>Total Acumulado</th></tr>';
+
+  const linhas = categorias.map(cat => {
+    const porMes = mesesNoIntervalo.map(m => despesas.filter(r => r.categoria === cat && r.ref === m).reduce((s, r) => s + (r.valor || 0), 0));
+    const total = porMes.reduce((s, v) => s + v, 0);
+    return { cat, porMes, total };
+  }).filter(l => l.total > 0);
+
+  const body = document.getElementById('compCatBody');
+  body.innerHTML = linhas.length
+    ? linhas.map(l => `<tr><td>${l.cat}</td>${l.porMes.map(v => `<td>${v ? Fmt.brl(v) : '—'}</td>`).join('')}<td style="font-weight:700;">${Fmt.brl(l.total)}</td></tr>`).join('')
+    : `<tr class="empty-row"><td colspan="${mesesNoIntervalo.length + 2}">Nenhuma despesa no período selecionado.</td></tr>`;
 }
 
 function marcarCartaoComoPago() {
