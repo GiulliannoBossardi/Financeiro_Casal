@@ -1067,7 +1067,7 @@ function salvarDespesa() {
     toast('Despesa salva.');
   }
   fecharModal('modalDespesa');
-  renderDespesas(); renderResumo(); renderInvestimentos();
+  renderDespesas(); renderResumo(); renderInvestimentos(); renderComparativoCategorias();
 }
 function possuiOcorrenciasFuturas(item, registros) {
   if (item.tipo === 'parcelada' && item.grupoId) {
@@ -1084,7 +1084,7 @@ function excluirDespesa(id) {
   if (item && possuiOcorrenciasFuturas(item, registros)) { abrirModalExcluirParcela(id, 'despesas'); return; }
   if (!confirm('Excluir esta despesa?')) return;
   DB.set('despesas', registros.filter(r => r.id !== id));
-  renderDespesas(); renderResumo(); renderInvestimentos();
+  renderDespesas(); renderResumo(); renderInvestimentos(); renderComparativoCategorias();
   toast('Despesa excluída.');
 }
 function abrirModalExcluirParcela(id, tabela) {
@@ -1130,13 +1130,13 @@ function confirmarExclusaoParcela() {
   DB.set(tabela, registros);
   fecharModal('modalExcluirParcela');
   if (tabela === 'entradas') { renderEntradas(); renderResumo(); }
-  else { renderDespesas(); renderResumo(); renderInvestimentos(); }
+  else { renderDespesas(); renderResumo(); renderInvestimentos(); renderComparativoCategorias(); }
   toast(tabela === 'entradas' ? 'Entrada excluída.' : 'Despesa excluída.');
 }
 function alternarStatusDespesa(id) {
   const registros = (DB.get('despesas') || []).map(r => r.id === id ? { ...r, status: r.status === 'pago' ? 'pendente' : 'pago' } : r);
   DB.set('despesas', registros);
-  renderDespesas(); renderResumo(); renderInvestimentos();
+  renderDespesas(); renderResumo(); renderInvestimentos(); renderComparativoCategorias();
 }
 function divisaoLabel(r) {
   if (r.divisao === 'dividida') {
@@ -1211,7 +1211,6 @@ function renderDespesas() {
   }).join('');
 
   document.getElementById('statsDespesas').innerHTML = statsHtml;
-  renderComparativoCategorias();
 }
 
 function renderComparativoCategorias() {
@@ -1246,6 +1245,26 @@ function renderComparativoCategorias() {
   body.innerHTML = linhas.length
     ? linhas.map(l => `<tr><td>${l.cat}</td>${l.porMes.map(v => `<td>${v ? Fmt.brl(v) : '—'}</td>`).join('')}<td style="font-weight:700;">${Fmt.brl(l.total)}</td></tr>`).join('')
     : `<tr class="empty-row"><td colspan="${mesesNoIntervalo.length + 2}">Nenhuma despesa no período selecionado.</td></tr>`;
+
+  // Dashboard: cards de destaque
+  const totalGeralPeriodo = linhas.reduce((s, l) => s + l.total, 0);
+  const linhasOrdenadas = [...linhas].sort((a, b) => b.total - a.total);
+  const categoriaTop = linhasOrdenadas[0] || null;
+  const mediaMensal = mesesNoIntervalo.length ? totalGeralPeriodo / mesesNoIntervalo.length : 0;
+  document.getElementById('statsComparativo').innerHTML = `
+    <div class="stat-card danger"><div class="stat-label">Total Acumulado no Período</div><div class="stat-value expense">${Fmt.brl(totalGeralPeriodo)}</div><div class="stat-sub">${mesesNoIntervalo.length} mês(es) selecionado(s)</div></div>
+    <div class="stat-card warn"><div class="stat-label">Categoria com Maior Gasto</div><div class="stat-value neutral">${categoriaTop ? categoriaTop.cat : '—'}</div><div class="stat-sub">${categoriaTop ? Fmt.brl(categoriaTop.total) : 'Sem dados no período'}</div></div>
+    <div class="stat-card blue"><div class="stat-label">Média Mensal (todas categorias)</div><div class="stat-value neutral">${Fmt.brl(mediaMensal)}</div><div class="stat-sub">Total ÷ meses selecionados</div></div>`;
+
+  // Dashboard: gráfico de barras simples (sem dependências externas)
+  const maxTotal = Math.max(...linhasOrdenadas.map(l => l.total), 1);
+  document.getElementById('compCatChart').innerHTML = linhasOrdenadas.length
+    ? linhasOrdenadas.map(l => `
+      <div style="margin-bottom:12px;">
+        <div style="display:flex;justify-content:space-between;font-size:.8rem;margin-bottom:4px;"><span>${l.cat}</span><span style="font-weight:600;">${Fmt.brl(l.total)}</span></div>
+        <div style="background:var(--border2,#333);border-radius:6px;overflow:hidden;height:10px;"><div style="height:100%;width:${(l.total / maxTotal * 100).toFixed(1)}%;background:var(--danger,#e5484d);border-radius:6px;"></div></div>
+      </div>`).join('')
+    : '<p style="color:var(--text-muted,#888);font-size:.85rem;margin:0;">Nenhuma despesa no período selecionado.</p>';
 }
 
 function marcarCartaoComoPago() {
@@ -1257,7 +1276,7 @@ function marcarCartaoComoPago() {
   if (!confirm('Marcar ' + alvo.length + ' despesa(s) de Cartão de Crédito de ' + Fmt.ref(ref) + ' como pagas?')) return;
   const atualizados = registros.map(r => (r.ref === ref && ehCartaoCredito(r.categoria) && r.status !== 'pago') ? { ...r, status: 'pago' } : r);
   DB.set('despesas', atualizados);
-  renderDespesas(); renderResumo(); renderInvestimentos();
+  renderDespesas(); renderResumo(); renderInvestimentos(); renderComparativoCategorias();
   toast(alvo.length + ' despesa(s) de Cartão de Crédito marcada(s) como pagas.');
 }
 
@@ -1335,7 +1354,7 @@ function renovarRecorrentes(tabela) {
   if (novos.length) {
     DB.set(tabela, [...registros, ...novos]);
     if (tabela === 'entradas') { renderEntradas(); renderResumo(); }
-    else { renderDespesas(); renderResumo(); renderInvestimentos(); }
+    else { renderDespesas(); renderResumo(); renderInvestimentos(); renderComparativoCategorias(); }
     toast(novos.length + ' mês(es) gerado(s) para ' + (tabela === 'entradas' ? 'entradas' : 'despesas') + ' recorrentes.');
   } else {
     toast('Nenhuma ' + (tabela === 'entradas' ? 'entrada' : 'despesa') + ' recorrente precisa de renovação agora.');
@@ -1502,6 +1521,7 @@ function renderAll() {
   renderEntradas();
   renderDespesas();
   renderInvestimentos();
+  renderComparativoCategorias();
   renderResumo();
   renderConfiguracao();
 }
