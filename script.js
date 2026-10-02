@@ -1306,9 +1306,14 @@ function renderComparativoCategorias() {
   }).filter(l => l.total > 0);
 
   const body = document.getElementById('compCatBody');
-  body.innerHTML = linhas.length
-    ? linhas.map(l => `<tr><td>${l.cat}</td>${l.porMes.map(v => `<td>${v ? Fmt.brl(v) : '—'}</td>`).join('')}<td style="font-weight:700;">${Fmt.brl(l.total)}</td></tr>`).join('')
-    : `<tr class="empty-row"><td colspan="${mesesNoIntervalo.length + 2}">Nenhuma despesa no período selecionado.</td></tr>`;
+  if (linhas.length) {
+    const totaisPorMes = mesesNoIntervalo.map((_, i) => linhas.reduce((s, l) => s + l.porMes[i], 0));
+    const totalGeralLinha = totaisPorMes.reduce((s, v) => s + v, 0);
+    body.innerHTML = linhas.map(l => `<tr><td>${l.cat}</td>${l.porMes.map(v => `<td>${v ? Fmt.brl(v) : '—'}</td>`).join('')}<td style="font-weight:700;">${Fmt.brl(l.total)}</td></tr>`).join('')
+      + `<tr style="border-top:2px solid var(--border2);"><td style="font-weight:700;">Total</td>${totaisPorMes.map(v => `<td style="font-weight:700;">${Fmt.brl(v)}</td>`).join('')}<td style="font-weight:700;">${Fmt.brl(totalGeralLinha)}</td></tr>`;
+  } else {
+    body.innerHTML = `<tr class="empty-row"><td colspan="${mesesNoIntervalo.length + 2}">Nenhuma despesa no período selecionado.</td></tr>`;
+  }
 
   // Dashboard: cards de destaque
   const totalGeralPeriodo = linhas.reduce((s, l) => s + l.total, 0);
