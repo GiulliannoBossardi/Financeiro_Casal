@@ -191,11 +191,11 @@
           <label>Mês/Ano:</label><select id="filtroRefDesp" onchange="onFiltroRefGlobalChange(this.value)" style="width:170px;"><option value="">Todos os períodos</option></select>
           <div class="filter-sep"></div>
           <label>Status:</label><select id="filtroStatusDesp" onchange="renderDespesas()" style="width:130px;"><option value="">Todos</option><option value="pendente">Pendente</option><option value="pago">Pago</option></select>
-          <button class="filter-clear" onclick="document.getElementById('filtroStatusDesp').value='';document.getElementById('filtroDivisaoDesp').value='';document.getElementById('filtroCatDesp').value='';document.getElementById('filtroDescDesp').value='';document.getElementById('filtroFormaPagamentoDesp').value='';onFiltroRefGlobalChange('');">✕ Limpar</button>
+          <button class="filter-clear" onclick="document.getElementById('filtroStatusDesp').value='';document.getElementById('filtroDivisaoDesp').value='';document.getElementById('filtroCatDesp').value='';document.getElementById('filtroDescDesp').value='';onFiltroRefGlobalChange('');">✕ Limpar</button>
         </div>
         <div class="grid-3 mb-20" id="statsDespesas"></div>
         <div class="card">
-          <div class="card-header"><div class="card-title">Despesas do Casal</div><div class="flex-gap"><span class="card-badge" id="despBadge">0 registros</span><button class="btn btn-sm" title="Marca todas as despesas pagas em um cartão no mês selecionado no filtro Mês/Ano como pagas" onclick="marcarCartaoComoPago()">💳 Marcar Cartão do Mês como Pago</button><button class="btn btn-sm" title="Gera novos meses para as despesas recorrentes que estão perto de acabar" onclick="renovarRecorrentes()">🔁 Renovar Recorrências</button><button class="btn btn-primary btn-sm" onclick="abrirModalDespesa()">+ Nova</button></div></div>
+          <div class="card-header"><div class="card-title">Despesas do Casal</div><div class="flex-gap"><span class="card-badge" id="despBadge">0 registros</span><button class="btn btn-sm" title="Marca todas as despesas de categoria Cartão de Crédito do mês selecionado no filtro Mês/Ano como pagas" onclick="marcarCartaoComoPago()">💳 Marcar Cartão do Mês como Pago</button><button class="btn btn-sm" title="Gera novos meses para as despesas recorrentes que estão perto de acabar" onclick="renovarRecorrentes()">🔁 Renovar Recorrências</button><button class="btn btn-primary btn-sm" onclick="abrirModalDespesa()">+ Nova</button></div></div>
           <div class="table-wrap"><table><thead><tr>
             <th class="sortable th-has-filter" data-tabela="despesas" data-col="descricao" data-tipo="texto">
               <div class="th-label">Descrição <span class="sort-icon">⇅</span></div>
@@ -210,10 +210,6 @@
             <th class="no-sort th-has-filter">
               <div class="th-label">Divisão</div>
               <select id="filtroDivisaoDesp" class="th-filter" onchange="renderDespesas()" onclick="event.stopPropagation()"></select>
-            </th>
-            <th class="no-sort th-has-filter">
-              <div class="th-label">Pagamento</div>
-              <select id="filtroFormaPagamentoDesp" class="th-filter" onchange="renderDespesas()" onclick="event.stopPropagation()"></select>
             </th>
             <th class="sortable" data-tabela="despesas" data-col="valor" data-tipo="valor">Valor <span class="sort-icon">⇅</span></th>
             <th class="sortable" data-tabela="despesas" data-col="status" data-tipo="texto">Status <span class="sort-icon">⇅</span></th>
@@ -293,17 +289,6 @@
             <div class="chip-list" id="categoriasLista"></div>
           </div>
         </div>
-        <div class="card mb-20">
-          <div class="card-header"><div class="card-title">Cartões de Crédito</div></div>
-          <div style="padding:16px;">
-            <p style="margin:0 0 10px;color:var(--text-muted,#888);font-size:.82rem;">Cadastre aqui seus cartões. Ao lançar uma despesa, escolha a <strong>Categoria</strong> real (Combustível, Mercado...) e, separadamente, a <strong>Forma de Pagamento</strong> — assim o cartão não "mascara" a categoria da despesa.</p>
-            <div style="display:flex;gap:8px;">
-              <input type="text" id="novoCartao" placeholder="Ex: Cartão Nubank..." style="flex:1;"/>
-              <button class="btn btn-primary btn-sm" onclick="adicionarCartao()">Adicionar</button>
-            </div>
-            <div class="chip-list" id="cartoesLista"></div>
-          </div>
-        </div>
         <div class="card">
           <div class="card-header"><div class="card-title">Tipos de Extra</div></div>
           <div style="padding:16px;">
@@ -365,7 +350,6 @@
     <div class="form-row full"><div><label>Descrição</label><input type="text" id="desp_descricao" placeholder="Ex: Aluguel, Supermercado..."/></div></div>
     <div class="form-row"><div><label>Categoria</label><select id="desp_categoria"></select></div><div><label id="desp_valor_label">Valor (R$)</label><input type="text" inputmode="decimal" class="money-input" id="desp_valor" oninput="atualizarHintDivisao()" placeholder="0,00"/></div></div>
     <div class="form-row full" id="desp_valor_hint" style="display:none;"><small style="color:var(--text-muted, #888);">Esse valor é o previsto. Cada mês gerado fica independente e você poderá editar o valor exato quando a despesa daquele mês acontecer.</small></div>
-    <div class="form-row full"><div><label>Forma de Pagamento</label><select id="desp_forma_pagamento"><option value="">Dinheiro / Débito / Pix</option></select></div></div>
     <div class="form-row"><div><label>Mês</label><select id="desp_mes"></select></div><div><label>Ano</label><select id="desp_ano"></select></div></div>
     <div class="form-row"><div><label>Tipo</label><select id="desp_tipo" onchange="onDespesaTipoChange()"><option value="avista">À vista</option><option value="parcelada">Parcelada</option><option value="recorrente">Recorrente</option></select></div><div id="desp_parcelas_wrap" style="display:none;"><label id="desp_parcelas_label">Total de Parcelas</label><input type="number" id="desp_parcelas" min="2" value="2"/></div></div>
     <div class="form-row"><div><label>Divisão</label><select id="desp_divisao" onchange="onDivisaoChange()"><option value="individual">Individual</option><option value="dividida">Dividida (casal)</option></select></div><div id="desp_pessoa_wrap"><label>Quem comprou</label><select id="desp_pessoa"></select></div></div>
