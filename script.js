@@ -1036,23 +1036,14 @@ function salvarDespesa() {
 
   if (id) {
     const itemAntigo = registros.find(r => r.id === id);
-    const mudouCategoriaParaCartao = itemAntigo && itemAntigo.categoria !== categoria && ehCartaoCredito(categoria);
-    const fazParteDeGrupo = itemAntigo && (itemAntigo.tipo === 'parcelada' || itemAntigo.tipo === 'recorrente');
-    if (mudouCategoriaParaCartao && fazParteDeGrupo) {
-      const grupoField = itemAntigo.tipo === 'recorrente' ? 'recorrenteId' : 'grupoId';
-      const grupoValor = itemAntigo[grupoField];
-      registros = registros.map(r => {
-        if (r.id === id) return { ...r, descricao, categoria, valor, ref: refBase, tipo, status, divisao, pessoaId, splits };
-        if (grupoValor && r[grupoField] === grupoValor && r.ref >= itemAntigo.ref) return { ...r, categoria };
-        return r;
-      });
-      DB.set('despesas', registros);
-      toast('Despesa atualizada. Categoria alterada para "' + categoria + '" nesta e nas parcelas/meses seguintes.');
-    } else {
-      registros = registros.map(r => r.id === id ? { ...r, descricao, categoria, valor, ref: refBase, tipo, status, divisao, pessoaId, splits } : r);
-      DB.set('despesas', registros);
-      toast('Despesa atualizada.');
+    const dadosEditados = { descricao, categoria, valor, ref: refBase, tipo, status, divisao, pessoaId, splits };
+    if (itemAntigo && possuiOcorrenciasFuturas(itemAntigo, registros)) {
+      _pendingEdicaoDespesa = { id, itemAntigo, dados: dadosEditados };
+      abrirModalEditarParcela(itemAntigo.tipo);
+      return;
     }
+    aplicarEdicaoDespesa(id, dadosEditados, 'somente');
+    return;
   } else if (tipo === 'parcelada') {
     const totalParcelas = Math.max(2, parseInt(document.getElementById('desp_parcelas').value) || 2);
     const grupoId = Fmt.uid();
@@ -1085,6 +1076,59 @@ function salvarDespesa() {
     registros.push({ id: Fmt.uid(), descricao, categoria, valor, ref: refBase, tipo, status, divisao, pessoaId, splits });
     DB.set('despesas', registros);
     toast('Despesa salva.');
+  }
+  fecharModal('modalDespesa');
+  renderDespesas(); renderResumo(); renderInvestimentos(); renderComparativoCategorias();
+}
+let _pendingEdicaoDespesa = null;
+function abrirModalEditarParcela(tipo) {
+  const ehParcelada = tipo === 'parcelada';
+  document.getElementById('tituloModalEditarParcela').textContent = ehParcelada ? 'Editar Parcela' : 'Editar Recorrência';
+  document.getElementById('editParcela_texto').textContent = ehParcelada
+    ? 'Esta despesa faz parte de uma compra parcelada e existem parcelas futuras. O que deseja fazer com esta alteração?'
+    : 'Esta despesa é recorrente e existem meses futuros já gerados. O que deseja fazer com esta alteração?';
+  document.getElementById('editParcela_opcao_somente_texto').textContent = ehParcelada ? 'Editar somente esta parcela' : 'Editar somente este mês';
+  document.getElementById('editParcela_opcao_subsequentes_texto').textContent = ehParcelada ? 'Editar esta e todas as parcelas futuras' : 'Editar este e todos os meses futuros';
+  const radio = document.querySelector('input[name="editParcelaOpcao"][value="somente"]');
+  if (radio) radio.checked = true;
+  abrirModal('modalEditarParcela');
+}
+function cancelarEdicaoParcela() {
+  _pendingEdicaoDespesa = null;
+  fecharModal('modalEditarParcela');
+}
+function confirmarEdicaoParcela() {
+  if (!_pendingEdicaoDespesa) { fecharModal('modalEditarParcela'); return; }
+  const opcaoEl = document.querySelector('input[name="editParcelaOpcao"]:checked');
+  const opcao = opcaoEl ? opcaoEl.value : 'somente';
+  const { id, dados } = _pendingEdicaoDespesa;
+  aplicarEdicaoDespesa(id, dados, opcao);
+  _pendingEdicaoDespesa = null;
+  fecharModal('modalEditarParcela');
+}
+function aplicarEdicaoDespesa(id, dados, alcance) {
+  let registros = DB.get('despesas') || [];
+  const itemAntigo = registros.find(r => r.id === id);
+  if (!itemAntigo) { fecharModal('modalDespesa'); return; }
+  if (alcance === 'subsequentes') {
+    const grupoField = itemAntigo.tipo === 'recorrente' ? 'recorrenteId' : 'grupoId';
+    const grupoValor = itemAntigo[grupoField];
+    // Nas parcelas/meses futuros só propagamos os dados "de conteúdo" da despesa
+    // (descrição, categoria, valor, divisão) — status e referência de cada ocorrência
+    // continuam individuais, já que cada mês tem seu próprio ciclo de pagamento.
+    registros = registros.map(r => {
+      if (r.id === id) return { ...r, ...dados };
+      if (grupoValor && r[grupoField] === grupoValor && r.ref > itemAntigo.ref) {
+        return { ...r, descricao: dados.descricao, categoria: dados.categoria, valor: dados.valor, divisao: dados.divisao, pessoaId: dados.pessoaId, splits: dados.splits ? { ...dados.splits } : null };
+      }
+      return r;
+    });
+    DB.set('despesas', registros);
+    toast('Despesa atualizada nesta e nas parcelas/meses futuros.');
+  } else {
+    registros = registros.map(r => r.id === id ? { ...r, ...dados } : r);
+    DB.set('despesas', registros);
+    toast('Despesa atualizada.');
   }
   fecharModal('modalDespesa');
   renderDespesas(); renderResumo(); renderInvestimentos(); renderComparativoCategorias();
