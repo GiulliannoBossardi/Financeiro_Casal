@@ -69,16 +69,19 @@ const DB = {
     if (!this.get('extras')) this.set('extras', []);
     if (!this.get('despesas')) this.set('despesas', []);
     if (!this.get('entradas')) this.set('entradas', []);
-    if (!this.get('categoriasDespesa')) this.set('categoriasDespesa', ['Moradia', 'Alimentação', 'Transporte', 'Saúde', 'Lazer', 'Cartão Sicredi', 'Cartão Nubank', 'Reserva de Emergência', 'Outros']);
+    if (!this.get('categoriasDespesa')) this.set('categoriasDespesa', ['Moradia', 'Alimentação', 'Transporte', 'Saúde', 'Lazer', 'Reserva de Emergência', 'Outros']);
     else {
       let cats = this.get('categoriasDespesa');
       const temReserva = cats.some(c => normalizarTexto(c) === 'reserva de emergencia' || normalizarTexto(c) === 'reserva');
       if (!temReserva) cats = [...cats, 'Reserva de Emergência'];
-      const temSicredi = cats.some(c => normalizarTexto(c) === 'cartao sicredi');
-      if (!temSicredi) cats = [...cats, 'Cartão Sicredi'];
-      const temNubank = cats.some(c => normalizarTexto(c) === 'cartao nubank');
-      if (!temNubank) cats = [...cats, 'Cartão Nubank'];
       this.set('categoriasDespesa', cats);
+    }
+    // Cartões (forma de pagamento). Migração NÃO destrutiva: só cria a lista, sem alterar
+    // categorias nem despesas já existentes. Cartões que hoje vivem como categoria (ex: "Cartão
+    // Nubank") entram na lista, e as despesas antigas continuam funcionando normalmente.
+    if (!this.get('cartoesCredito')) {
+      const legado = (this.get('categoriasDespesa') || []).filter(ehCartaoCredito);
+      this.set('cartoesCredito', legado.length ? legado : ['Cartão Sicredi', 'Cartão Nubank']);
     }
     if (!this.get('tiposExtra')) this.set('tiposExtra', ['Hora Extra', 'Bônus', 'PLR', 'Comissão', 'Outro']);
     if (!this.get('theme')) this.set('theme', 'dark');
@@ -434,7 +437,34 @@ function populaDivisaoSelect(selId) {
   const valores = ['', 'dividida', ...pessoas.map(p => p.id)];
   if (valores.includes(atual)) sel.value = atual;
 }
+function listaCartoes() {
+  const cadastrados = DB.get('cartoesCredito') || [];
+  const legado = (DB.get('categoriasDespesa') || []).filter(ehCartaoCredito);
+  return [...new Set([...cadastrados, ...legado])];
+}
+// Cartão de uma despesa: o campo "forma de pagamento" ou, em despesas antigas, a própria categoria "Cartão X"
+function cartaoDaDespesa(r) {
+  if (r.formaPagamento) return r.formaPagamento;
+  return ehCartaoCredito(r.categoria) ? r.categoria : null;
+}
+function formaPagamentoLabel(r) {
+  const c = cartaoDaDespesa(r);
+  return c ? ('💳 ' + c) : 'Dinheiro/Débito/Pix';
+}
+function populaFormaPagamentoSelect(selId, includeAll) {
+  const cartoes = listaCartoes();
+  const sel = document.getElementById(selId);
+  const atual = sel.value;
+  let html = includeAll ? '<option value="">Todas</option><option value="_normal">Dinheiro / Débito / Pix</option>' : '<option value="">Dinheiro / Débito / Pix</option>';
+  html += cartoes.map(c => `<option value="${c}">${c}</option>`).join('');
+  sel.innerHTML = html;
+  const valores = includeAll ? ['', '_normal', ...cartoes] : ['', ...cartoes];
+  if (valores.includes(atual)) sel.value = atual;
+}
 function populaTipoExtraSelect(selId) {
+  const cartoes = DB.get('cartoesCredito') || [];
+  document.getElementById('cartoesLista').innerHTML = cartoes.map(c => `<div class="chip">${c}<button onclick="removerCartao('${c}')">✕</button></div>`).join('');
+
   const tipos = DB.get('tiposExtra') || [];
   document.getElementById(selId).innerHTML = tipos.map(t => `<option value="${t}">${t}</option>`).join('');
 }
@@ -995,6 +1025,7 @@ let _despSplitsEdicao = null;
 function abrirModalDespesa(id) {
   populaCategoriaSelect('desp_categoria', false);
   populaPessoaSelect('desp_pessoa', false);
+  populaFormaPagamentoSelect('desp_forma_pagamento', false);
   const registros = DB.get('despesas') || [];
   const item = registros.find(r => r.id === id);
   document.getElementById('tituloModalDespesa').textContent = item ? 'Editar Despesa' : 'Nova Despesa';
@@ -1002,6 +1033,7 @@ function abrirModalDespesa(id) {
   populaMesAno('desp_mes', 'desp_ano', item ? item.ref : null);
   document.getElementById('desp_descricao').value = item ? item.descricao : '';
   if (item) document.getElementById('desp_categoria').value = item.categoria;
+  document.getElementById('desp_forma_pagamento').value = item ? (cartaoDaDespesa(item) || '') : '';
   document.getElementById('desp_valor').value = item ? Fmt.toInput(item.valor) : '';
   document.getElementById('desp_tipo').value = item ? item.tipo : 'avista';
   document.getElementById('desp_parcelas').value = item ? (item.totalParcelas || 2) : 2;
@@ -1019,6 +1051,7 @@ function salvarDespesa() {
   const descricao = document.getElementById('desp_descricao').value.trim();
   if (!descricao) { toast('Informe a descrição da despesa.', 'error'); return; }
   const categoria = document.getElementById('desp_categoria').value;
+  const formaPagamento = document.getElementById('desp_forma_pagamento').value || null;
   const tipo = document.getElementById('desp_tipo').value;
   const status = document.getElementById('desp_status').value;
   const divisao = document.getElementById('desp_divisao').value;
@@ -1036,7 +1069,7 @@ function salvarDespesa() {
 
   if (id) {
     const itemAntigo = registros.find(r => r.id === id);
-    const dadosEditados = { descricao, categoria, valor, ref: refBase, tipo, status, divisao, pessoaId, splits };
+    const dadosEditados = { descricao, categoria, formaPagamento, valor, ref: refBase, tipo, status, divisao, pessoaId, splits };
     if (itemAntigo && possuiOcorrenciasFuturas(itemAntigo, registros)) {
       _pendingEdicaoDespesa = { id, itemAntigo, dados: dadosEditados };
       abrirModalEditarParcela(itemAntigo.tipo);
@@ -1052,7 +1085,7 @@ function salvarDespesa() {
       const d = new Date(anoBase, mesBase - 1 + i, 1);
       const ref = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
       registros.push({
-        id: Fmt.uid(), descricao, categoria, valor, ref, tipo, status, divisao, pessoaId, splits: splits ? { ...splits } : null,
+        id: Fmt.uid(), descricao, categoria, formaPagamento, valor, ref, tipo, status, divisao, pessoaId, splits: splits ? { ...splits } : null,
         parcelaAtual: i + 1, totalParcelas, grupoId
       });
     }
@@ -1066,14 +1099,14 @@ function salvarDespesa() {
       const d = new Date(anoBase, mesBase - 1 + i, 1);
       const ref = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
       registros.push({
-        id: Fmt.uid(), descricao, categoria, valor, valorPrevisto: valor, ref, tipo, status, divisao, pessoaId, splits: splits ? { ...splits } : null,
+        id: Fmt.uid(), descricao, categoria, formaPagamento, valor, valorPrevisto: valor, ref, tipo, status, divisao, pessoaId, splits: splits ? { ...splits } : null,
         recorrenteId: grupoId
       });
     }
     DB.set('despesas', registros);
     toast('Despesa recorrente gerada para ' + totalMeses + ' meses. Você pode editar o valor de cada mês individualmente.');
   } else {
-    registros.push({ id: Fmt.uid(), descricao, categoria, valor, ref: refBase, tipo, status, divisao, pessoaId, splits });
+    registros.push({ id: Fmt.uid(), descricao, categoria, formaPagamento, valor, ref: refBase, tipo, status, divisao, pessoaId, splits });
     DB.set('despesas', registros);
     toast('Despesa salva.');
   }
@@ -1119,7 +1152,7 @@ function aplicarEdicaoDespesa(id, dados, alcance) {
     registros = registros.map(r => {
       if (r.id === id) return { ...r, ...dados };
       if (grupoValor && r[grupoField] === grupoValor && r.ref > itemAntigo.ref) {
-        return { ...r, descricao: dados.descricao, categoria: dados.categoria, valor: dados.valor, divisao: dados.divisao, pessoaId: dados.pessoaId, splits: dados.splits ? { ...dados.splits } : null };
+        return { ...r, descricao: dados.descricao, categoria: dados.categoria, formaPagamento: dados.formaPagamento, valor: dados.valor, divisao: dados.divisao, pessoaId: dados.pessoaId, splits: dados.splits ? { ...dados.splits } : null };
       }
       return r;
     });
@@ -1219,16 +1252,19 @@ function renderDespesas() {
   populaRefFiltro('filtroRefDesp', registros);
   populaCategoriaSelect('filtroCatDesp', true);
   populaDivisaoSelect('filtroDivisaoDesp');
+  populaFormaPagamentoSelect('filtroFormaPagamentoDesp', true);
   const ref = document.getElementById('filtroRefDesp').value;
   const status = document.getElementById('filtroStatusDesp').value;
   const categoria = document.getElementById('filtroCatDesp').value;
   const divisao = document.getElementById('filtroDivisaoDesp').value;
+  const formaPagamentoFiltro = document.getElementById('filtroFormaPagamentoDesp').value;
   const descricaoBusca = normalizarTexto(document.getElementById('filtroDescDesp').value);
   let filtrados = registros.filter(r =>
     (!ref || r.ref === ref) &&
     (!status || r.status === status) &&
     (!categoria || r.categoria === categoria) &&
     (!divisao || (divisao === 'dividida' ? r.divisao === 'dividida' : (r.divisao === 'individual' && r.pessoaId === divisao))) &&
+    (!formaPagamentoFiltro || (formaPagamentoFiltro === '_normal' ? !cartaoDaDespesa(r) : cartaoDaDespesa(r) === formaPagamentoFiltro)) &&
     (!descricaoBusca || normalizarTexto(r.descricao).includes(descricaoBusca)) &&
     dentroDoPeriodo(r.ref));
   filtrados = aplicarOrdenacao('despesas', filtrados, (r, col) => {
@@ -1247,10 +1283,11 @@ function renderDespesas() {
       <td>${r.descricao}</td><td>${r.categoria || '—'}</td><td>${Fmt.ref(r.ref)}</td>
       <td>${r.tipo === 'parcelada' ? r.parcelaAtual + '/' + r.totalParcelas : (r.tipo === 'recorrente' ? '🔁 Recorrente' : 'À vista')}</td>
       <td>${divisaoLabel(r)}</td>
+      <td>${formaPagamentoLabel(r)}</td>
       <td>${Fmt.brl(r.valor)}</td>
       <td><span class="pill ${r.status === 'pago' ? 'ok' : 'pend'}" style="cursor:pointer;" onclick="alternarStatusDespesa('${r.id}')">${r.status === 'pago' ? 'Pago' : 'Pendente'}</span></td>
       <td class="row-actions"><button class="icon-btn" onclick="abrirModalDespesa('${r.id}')" title="Editar">✎</button><button class="icon-btn del" onclick="excluirDespesa('${r.id}')" title="Excluir">🗑</button></td>
-    </tr>`).join('') : '<tr class="empty-row"><td colspan="8">Nenhuma despesa encontrada.</td></tr>';
+    </tr>`).join('') : '<tr class="empty-row"><td colspan="9">Nenhuma despesa encontrada.</td></tr>';
 
   const totalGeral = filtrados.reduce((s, r) => s + (r.valor || 0), 0);
   const totalPago = filtrados.filter(r => r.status === 'pago').reduce((s, r) => s + (r.valor || 0), 0);
@@ -1315,6 +1352,20 @@ function renderComparativoCategorias() {
     body.innerHTML = `<tr class="empty-row"><td colspan="${mesesNoIntervalo.length + 2}">Nenhuma despesa no período selecionado.</td></tr>`;
   }
 
+  // Fatura por cartão (considera a forma de pagamento e, em despesas antigas, a categoria "Cartão X")
+  const linhasCartao = listaCartoes().map(cartao => {
+    const porMes = mesesNoIntervalo.map(m => despesas.filter(r => r.ref === m && cartaoDaDespesa(r) === cartao).reduce((t, r) => t + (r.valor || 0), 0));
+    return { cartao, porMes, total: porMes.reduce((t, v) => t + v, 0) };
+  }).filter(l => l.total > 0);
+  document.getElementById('compCartaoThead').innerHTML = '<tr><th>Cartão</th>' + mesesNoIntervalo.map(m => `<th>${Fmt.ref(m)}</th>`).join('') + '<th>Total Acumulado</th></tr>';
+  if (linhasCartao.length) {
+    const totaisCartaoMes = mesesNoIntervalo.map((_, i) => linhasCartao.reduce((t, l) => t + l.porMes[i], 0));
+    document.getElementById('compCartaoBody').innerHTML = linhasCartao.map(l => `<tr><td>💳 ${l.cartao}</td>${l.porMes.map(v => `<td>${v ? Fmt.brl(v) : '—'}</td>`).join('')}<td style="font-weight:700;">${Fmt.brl(l.total)}</td></tr>`).join('')
+      + `<tr style="border-top:2px solid var(--border2);"><td style="font-weight:700;">Total</td>${totaisCartaoMes.map(v => `<td style="font-weight:700;">${Fmt.brl(v)}</td>`).join('')}<td style="font-weight:700;">${Fmt.brl(totaisCartaoMes.reduce((t, v) => t + v, 0))}</td></tr>`;
+  } else {
+    document.getElementById('compCartaoBody').innerHTML = `<tr class="empty-row"><td colspan="${mesesNoIntervalo.length + 2}">Nenhuma despesa de cartão no período selecionado.</td></tr>`;
+  }
+
   // Dashboard: cards de destaque
   const totalGeralPeriodo = linhas.reduce((s, l) => s + l.total, 0);
   const linhasOrdenadas = [...linhas].sort((a, b) => b.total - a.total);
@@ -1336,14 +1387,11 @@ function renderComparativoCategorias() {
     : '<p style="color:var(--text-muted,#888);font-size:.85rem;margin:0;">Nenhuma despesa no período selecionado.</p>';
 }
 
-function categoriasCartao() {
-  return (DB.get('categoriasDespesa') || []).filter(ehCartaoCredito);
-}
 function marcarCartaoComoPago() {
   const ref = document.getElementById('filtroRefDesp').value;
   if (!ref) { toast('Selecione um Mês/Ano específico no filtro para marcar o cartão daquele mês como pago.', 'error'); return; }
-  const cartoes = categoriasCartao();
-  if (!cartoes.length) { toast('Nenhuma categoria de cartão cadastrada. Cadastre em Configuração (ex: "Cartão Sicredi", "Cartão Nubank").', 'error'); return; }
+  const cartoes = listaCartoes();
+  if (!cartoes.length) { toast('Nenhum cartão cadastrado. Cadastre em Configuração.', 'error'); return; }
   document.getElementById('mc_ref').value = ref;
   document.getElementById('mc_ref_label').textContent = Fmt.ref(ref);
   document.getElementById('mc_categoria').innerHTML = cartoes.map(c => `<option value="${c}">${c}</option>`).join('');
@@ -1351,13 +1399,13 @@ function marcarCartaoComoPago() {
 }
 function confirmarMarcarCartao() {
   const ref = document.getElementById('mc_ref').value;
-  const categoria = document.getElementById('mc_categoria').value;
+  const categoria = document.getElementById('mc_categoria').value; // nome do cartão
   if (!ref || !categoria) { fecharModal('modalMarcarCartao'); return; }
   const registros = DB.get('despesas') || [];
-  const alvo = registros.filter(r => r.ref === ref && r.categoria === categoria && r.status !== 'pago');
+  const alvo = registros.filter(r => r.ref === ref && cartaoDaDespesa(r) === categoria && r.status !== 'pago');
   if (!alvo.length) { toast('Nenhuma despesa pendente de ' + categoria + ' encontrada para ' + Fmt.ref(ref) + '.', 'error'); fecharModal('modalMarcarCartao'); return; }
   if (!confirm('Marcar ' + alvo.length + ' despesa(s) de ' + categoria + ' de ' + Fmt.ref(ref) + ' como pagas?')) return;
-  const atualizados = registros.map(r => (r.ref === ref && r.categoria === categoria && r.status !== 'pago') ? { ...r, status: 'pago' } : r);
+  const atualizados = registros.map(r => (r.ref === ref && cartaoDaDespesa(r) === categoria && r.status !== 'pago') ? { ...r, status: 'pago' } : r);
   DB.set('despesas', atualizados);
   fecharModal('modalMarcarCartao');
   renderDespesas(); renderResumo(); renderInvestimentos(); renderComparativoCategorias();
@@ -1577,6 +1625,18 @@ function adicionarCategoria() {
   const cats = DB.get('categoriasDespesa') || [];
   if (!cats.includes(v)) { cats.push(v); DB.set('categoriasDespesa', cats); renderConfiguracao(); }
   input.value = '';
+}
+function adicionarCartao() {
+  const input = document.getElementById('novoCartao');
+  const v = input.value.trim();
+  if (!v) return;
+  const cartoes = DB.get('cartoesCredito') || [];
+  if (!cartoes.includes(v)) { cartoes.push(v); DB.set('cartoesCredito', cartoes); renderConfiguracao(); }
+  input.value = '';
+}
+function removerCartao(c) {
+  DB.set('cartoesCredito', (DB.get('cartoesCredito') || []).filter(x => x !== c));
+  renderConfiguracao();
 }
 function removerCategoria(c) {
   DB.set('categoriasDespesa', (DB.get('categoriasDespesa') || []).filter(x => x !== c));
