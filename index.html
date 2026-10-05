@@ -191,7 +191,7 @@
           <label>Mês/Ano:</label><select id="filtroRefDesp" onchange="onFiltroRefGlobalChange(this.value)" style="width:170px;"><option value="">Todos os períodos</option></select>
           <div class="filter-sep"></div>
           <label>Status:</label><select id="filtroStatusDesp" onchange="renderDespesas()" style="width:130px;"><option value="">Todos</option><option value="pendente">Pendente</option><option value="pago">Pago</option></select>
-          <button class="filter-clear" onclick="document.getElementById('filtroStatusDesp').value='';document.getElementById('filtroDivisaoDesp').value='';document.getElementById('filtroCatDesp').value='';document.getElementById('filtroDescDesp').value='';document.getElementById('filtroFormaPagamentoDesp').value='';onFiltroRefGlobalChange('');">✕ Limpar</button>
+          <button class="filter-clear" onclick="document.getElementById('filtroStatusDesp').value='';limparMultiSelects();document.getElementById('filtroDescDesp').value='';document.getElementById('filtroFormaPagamentoDesp').value='';onFiltroRefGlobalChange('');">✕ Limpar</button>
         </div>
         <div class="grid-3 mb-20" id="statsDespesas"></div>
         <div class="card">
@@ -203,13 +203,13 @@
             </th>
             <th class="sortable th-has-filter" data-tabela="despesas" data-col="categoria" data-tipo="texto">
               <div class="th-label">Categoria <span class="sort-icon">⇅</span></div>
-              <select id="filtroCatDesp" class="th-filter" onchange="renderDespesas()" onclick="event.stopPropagation()"></select>
+              <button type="button" id="msBtnCat" class="th-filter ms-btn" onclick="event.stopPropagation();abrirMultiSelect('cat', this)"><span id="msLabelCat">Todas</span><span>▾</span></button>
             </th>
             <th class="sortable" data-tabela="despesas" data-col="ref" data-tipo="data">Referência <span class="sort-icon">⇅</span></th>
             <th class="no-sort">Tipo</th>
             <th class="no-sort th-has-filter">
               <div class="th-label">Divisão</div>
-              <select id="filtroDivisaoDesp" class="th-filter" onchange="renderDespesas()" onclick="event.stopPropagation()"></select>
+              <button type="button" id="msBtnDiv" class="th-filter ms-btn" onclick="event.stopPropagation();abrirMultiSelect('div', this)"><span id="msLabelDiv">Todas</span><span>▾</span></button>
             </th>
             <th class="no-sort th-has-filter">
               <div class="th-label">Pagamento</div>
@@ -362,6 +362,8 @@
   </div>
   <div class="modal-footer"><button class="btn" onclick="fecharModal('modalExtra')">Cancelar</button><button class="btn btn-primary" onclick="salvarExtra()">Salvar</button></div>
 </div></div>
+
+<div class="ms-panel" id="msPanel" onclick="event.stopPropagation()"></div>
 
 <div class="modal-overlay" id="modalDespesa"><div class="modal">
   <div class="modal-header"><div class="modal-title" id="tituloModalDespesa">Nova Despesa</div><button class="modal-close" onclick="fecharModal('modalDespesa')">✕</button></div>

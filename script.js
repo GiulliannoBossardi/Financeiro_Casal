@@ -427,6 +427,60 @@ function populaOrigemSelect(selId, registros, includeAll) {
   sel.innerHTML = html;
   if (origens.includes(atual) || (includeAll && atual === '')) sel.value = atual;
 }
+/* ===== Filtros de múltipla seleção (Categoria e Divisão da tabela de Despesas) ===== */
+const msState = { cat: [], div: [] };
+let msAberto = null;
+function msOpcoes(chave) {
+  if (chave === 'cat') return (DB.get('categoriasDespesa') || []).map(c => ({ valor: c, texto: c }));
+  return [{ valor: 'dividida', texto: 'Dividida' }, ...(DB.get('pessoas') || []).map(p => ({ valor: p.id, texto: p.nome }))];
+}
+function atualizarMultiSelects() {
+  ['cat', 'div'].forEach(chave => {
+    const opcoes = msOpcoes(chave);
+    msState[chave] = msState[chave].filter(v => opcoes.some(o => o.valor === v)); // descarta itens removidos
+    const sel = msState[chave];
+    const label = document.getElementById(chave === 'cat' ? 'msLabelCat' : 'msLabelDiv');
+    if (!label) return;
+    label.textContent = !sel.length ? 'Todas' : (sel.length === 1 ? opcoes.find(o => o.valor === sel[0]).texto : sel.length + ' selecionadas');
+  });
+}
+function abrirMultiSelect(chave, btn) {
+  const painel = document.getElementById('msPanel');
+  if (msAberto === chave && painel.classList.contains('show')) { fecharMultiSelect(); return; }
+  msAberto = chave;
+  desenharMultiSelect();
+  const r = btn.getBoundingClientRect();
+  painel.style.left = Math.min(r.left, window.innerWidth - 230) + 'px';
+  painel.style.top = (r.bottom + 4) + 'px';
+  painel.style.minWidth = Math.max(210, r.width) + 'px';
+  painel.classList.add('show');
+}
+function fecharMultiSelect() {
+  document.getElementById('msPanel').classList.remove('show');
+  msAberto = null;
+}
+function desenharMultiSelect() {
+  const chave = msAberto;
+  if (!chave) return;
+  const sel = msState[chave];
+  document.getElementById('msPanel').innerHTML =
+    `<div class="ms-actions"><button type="button" onclick="msTodas('${chave}')">Selecionar todas</button><button type="button" onclick="msLimpar('${chave}')">Limpar</button></div>` +
+    msOpcoes(chave).map((o, i) => `<label class="ms-opt"><input type="checkbox" ${sel.includes(o.valor) ? 'checked' : ''} onchange="msAlternar('${chave}', ${i}, this.checked)"/> <span>${o.texto}</span></label>`).join('');
+}
+function msAlternar(chave, indice, marcado) {
+  const valor = msOpcoes(chave)[indice].valor;
+  const sel = msState[chave].filter(v => v !== valor);
+  if (marcado) sel.push(valor);
+  msState[chave] = sel;
+  renderDespesas();
+}
+function msTodas(chave) { msState[chave] = msOpcoes(chave).map(o => o.valor); renderDespesas(); desenharMultiSelect(); }
+function msLimpar(chave) { msState[chave] = []; renderDespesas(); desenharMultiSelect(); }
+function limparMultiSelects() { msState.cat = []; msState.div = []; }
+document.addEventListener('click', () => { if (msAberto) fecharMultiSelect(); });
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && msAberto) fecharMultiSelect(); });
+window.addEventListener('resize', () => { if (msAberto) fecharMultiSelect(); });
+document.addEventListener('scroll', e => { if (msAberto && !document.getElementById('msPanel').contains(e.target)) fecharMultiSelect(); }, true);
 function populaDivisaoSelect(selId) {
   const pessoas = DB.get('pessoas') || [];
   const sel = document.getElementById(selId);
@@ -1250,20 +1304,19 @@ function divisaoLabel(r) {
 function renderDespesas() {
   const registros = DB.get('despesas') || [];
   populaRefFiltro('filtroRefDesp', registros);
-  populaCategoriaSelect('filtroCatDesp', true);
-  populaDivisaoSelect('filtroDivisaoDesp');
+  atualizarMultiSelects();
   populaFormaPagamentoSelect('filtroFormaPagamentoDesp', true);
   const ref = document.getElementById('filtroRefDesp').value;
   const status = document.getElementById('filtroStatusDesp').value;
-  const categoria = document.getElementById('filtroCatDesp').value;
-  const divisao = document.getElementById('filtroDivisaoDesp').value;
+  const catSel = msState.cat;
+  const divSel = msState.div;
   const formaPagamentoFiltro = document.getElementById('filtroFormaPagamentoDesp').value;
   const descricaoBusca = normalizarTexto(document.getElementById('filtroDescDesp').value);
   let filtrados = registros.filter(r =>
     (!ref || r.ref === ref) &&
     (!status || r.status === status) &&
-    (!categoria || r.categoria === categoria) &&
-    (!divisao || (divisao === 'dividida' ? r.divisao === 'dividida' : (r.divisao === 'individual' && r.pessoaId === divisao))) &&
+    (!catSel.length || catSel.includes(r.categoria)) &&
+    (!divSel.length || divSel.some(v => v === 'dividida' ? r.divisao === 'dividida' : (r.divisao === 'individual' && r.pessoaId === v))) &&
     (!formaPagamentoFiltro || (formaPagamentoFiltro === '_normal' ? !cartaoDaDespesa(r) : cartaoDaDespesa(r) === formaPagamentoFiltro)) &&
     (!descricaoBusca || normalizarTexto(r.descricao).includes(descricaoBusca)) &&
     dentroDoPeriodo(r.ref));
