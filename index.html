@@ -195,7 +195,7 @@
         </div>
         <div class="grid-3 mb-20" id="statsDespesas"></div>
         <div class="card">
-          <div class="card-header"><div class="card-title">Despesas do Casal</div><div class="flex-gap"><span class="card-badge" id="despBadge">0 registros</span><button class="btn btn-sm" title="Marca todas as despesas de um cartão no mês selecionado no filtro Mês/Ano como pagas" onclick="marcarCartaoComoPago()">💳 Marcar Cartão do Mês como Pago</button><button class="btn btn-sm" title="Gera novos meses para as despesas recorrentes que estão perto de acabar" onclick="renovarRecorrentes()">🔁 Renovar Recorrências</button><button class="btn btn-primary btn-sm" onclick="abrirModalDespesa()">+ Nova</button></div></div>
+          <div class="card-header"><div class="card-title">Despesas do Casal</div><div class="flex-gap"><span class="card-badge" id="despBadge">0 registros</span><button class="btn btn-sm" title="Exporta para Excel (.xlsx) as despesas que estão aparecendo na tabela, respeitando os filtros" onclick="exportarDespesasXlsx()">📥 Exportar Excel</button><button class="btn btn-sm" title="Marca todas as despesas de um cartão no mês selecionado no filtro Mês/Ano como pagas" onclick="marcarCartaoComoPago()">💳 Marcar Cartão do Mês como Pago</button><button class="btn btn-sm" title="Gera novos meses para as despesas recorrentes que estão perto de acabar" onclick="renovarRecorrentes()">🔁 Renovar Recorrências</button><button class="btn btn-primary btn-sm" onclick="abrirModalDespesa()">+ Nova</button></div></div>
           <div class="table-wrap"><table><thead><tr>
             <th class="sortable th-has-filter" data-tabela="despesas" data-col="descricao" data-tipo="texto">
               <div class="th-label">Descrição <span class="sort-icon">⇅</span></div>
@@ -461,6 +461,7 @@
 
 <script src="https://www.gstatic.com/firebasejs/10.13.1/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.13.1/firebase-firestore-compat.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="firebase-config.js"></script>
 <script src="script.js"></script>
 </body>

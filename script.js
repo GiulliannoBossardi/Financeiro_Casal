@@ -1289,6 +1289,40 @@ function alternarStatusDespesa(id) {
   DB.set('despesas', registros);
   renderDespesas(); renderResumo(); renderInvestimentos(); renderComparativoCategorias();
 }
+let _despesasFiltradas = [];
+function rotuloTipoDespesa(r) {
+  return r.tipo === 'parcelada' ? r.parcelaAtual + '/' + r.totalParcelas : (r.tipo === 'recorrente' ? 'Recorrente' : 'À vista');
+}
+function exportarDespesasXlsx() {
+  if (typeof XLSX === 'undefined') { toast('Biblioteca de exportação não carregou. Verifique a conexão e recarregue a página.', 'error'); return; }
+  const lista = _despesasFiltradas || [];
+  if (!lista.length) { toast('Nenhuma despesa para exportar com os filtros atuais.', 'error'); return; }
+  const cabecalho = ['Descrição', 'Categoria', 'Referência', 'Tipo', 'Divisão', 'Pagamento', 'Valor', 'Status'];
+  const linhas = lista.map(r => [
+    r.descricao || '',
+    r.categoria || '',
+    Fmt.ref(r.ref),
+    rotuloTipoDespesa(r),
+    r.divisao === 'dividida' ? divisaoLabel(r) : (r.pessoaId ? pessoaNome(r.pessoaId) : '—'),
+    cartaoDaDespesa(r) || 'Dinheiro/Débito/Pix',
+    Number(r.valor) || 0,
+    r.status === 'pago' ? 'Pago' : 'Pendente'
+  ]);
+  const ws = XLSX.utils.aoa_to_sheet([cabecalho, ...linhas]);
+  // Coluna Valor (G): número de verdade, com formato monetário
+  for (let i = 1; i <= linhas.length; i++) {
+    const celula = ws['G' + (i + 1)];
+    if (celula) { celula.t = 'n'; celula.z = '"R$" #,##0.00'; }
+  }
+  ws['!cols'] = [{ wch: 34 }, { wch: 22 }, { wch: 12 }, { wch: 12 }, { wch: 36 }, { wch: 22 }, { wch: 14 }, { wch: 11 }];
+  ws['!autofilter'] = { ref: 'A1:H' + (linhas.length + 1) };
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Despesas');
+  const hoje = new Date();
+  const dataStr = hoje.getFullYear() + '-' + String(hoje.getMonth() + 1).padStart(2, '0') + '-' + String(hoje.getDate()).padStart(2, '0');
+  XLSX.writeFile(wb, 'Despesas_Casal_' + dataStr + '.xlsx');
+  toast(linhas.length + ' despesa(s) exportada(s) para Excel.');
+}
 function divisaoLabel(r) {
   if (r.divisao === 'dividida') {
     const pessoas = DB.get('pessoas') || [];
@@ -1329,6 +1363,7 @@ function renderDespesas() {
       default: return r.ref || '';
     }
   });
+  _despesasFiltradas = filtrados;
   atualizarIconesOrdenacao('despesas');
   document.getElementById('despBadge').textContent = filtrados.length + ' registro' + (filtrados.length === 1 ? '' : 's');
   const body = document.getElementById('despBody');
