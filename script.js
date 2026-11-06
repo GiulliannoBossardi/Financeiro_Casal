@@ -114,14 +114,23 @@ function ehCartaoCredito(categoria) {
 ============================================ */
 function formatarInputMoeda(e) {
   const el = e.target;
+  const negativo = el.classList.contains('money-neg') && el.value.includes('-');
   let digits = el.value.replace(/\D/g, '');
-  if (!digits) { el.value = ''; return; }
+  if (!digits) { el.value = negativo ? '-' : ''; return; }
   digits = digits.replace(/^0+(?=\d)/, '');
   while (digits.length < 3) digits = '0' + digits;
   let centavos = digits.slice(-2);
   let inteiro = digits.slice(0, -2).replace(/^0+(?=\d)/, '');
   inteiro = inteiro.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
-  el.value = inteiro + ',' + centavos;
+  el.value = (negativo ? '-' : '') + inteiro + ',' + centavos;
+}
+// Botão ± ao lado do campo: alterna entre despesa e reembolso/estorno (valor negativo)
+function alternarSinalValor(id) {
+  const el = document.getElementById(id);
+  if (!el || el.readOnly) return;
+  el.value = el.value.startsWith('-') ? el.value.slice(1) : '-' + el.value;
+  el.dispatchEvent(new Event('input', { bubbles: true }));
+  el.focus();
 }
 function configurarMascarasMoeda() {
   document.querySelectorAll('.money-input').forEach(el => {
@@ -1036,7 +1045,7 @@ function renderSplitsDivisao(valoresIniciais) {
   const totalAtual = Fmt.parse(document.getElementById('desp_valor').value) || 0;
   const cont = document.getElementById('desp_splits_lista');
   cont.innerHTML = pessoas.map(p => `
-    <div class="form-row full"><div><label>${p.nome}</label><input type="text" inputmode="decimal" class="money-input" id="desp_split_${p.id}" placeholder="0,00"/></div></div>`).join('');
+    <div class="form-row full"><div><label>${p.nome}</label><div style="display:flex;gap:6px;"><input type="text" inputmode="decimal" class="money-input money-neg" id="desp_split_${p.id}" placeholder="0,00" style="flex:1;min-width:0;"/><button type="button" class="btn btn-sm" title="Alternar sinal (reembolso/estorno)" onclick="alternarSinalValor('desp_split_${p.id}')">±</button></div></div></div>`).join('');
   cont.querySelectorAll('.money-input').forEach(el => {
     el.addEventListener('input', formatarInputMoeda);
     el.addEventListener('paste', () => setTimeout(() => formatarInputMoeda({ target: el }), 0));
@@ -1312,7 +1321,7 @@ function exportarDespesasXlsx() {
   // Coluna Valor (G): número de verdade, com formato monetário
   for (let i = 1; i <= linhas.length; i++) {
     const celula = ws['G' + (i + 1)];
-    if (celula) { celula.t = 'n'; celula.z = '"R$" #,##0.00'; }
+    if (celula) { celula.t = 'n'; celula.z = '"R$" #,##0.00;[Red]-"R$" #,##0.00'; }
   }
   ws['!cols'] = [{ wch: 34 }, { wch: 22 }, { wch: 12 }, { wch: 12 }, { wch: 36 }, { wch: 22 }, { wch: 14 }, { wch: 11 }];
   ws['!autofilter'] = { ref: 'A1:H' + (linhas.length + 1) };
@@ -1372,7 +1381,7 @@ function renderDespesas() {
       <td>${r.tipo === 'parcelada' ? r.parcelaAtual + '/' + r.totalParcelas : (r.tipo === 'recorrente' ? '🔁 Recorrente' : 'À vista')}</td>
       <td>${divisaoLabel(r)}</td>
       <td>${formaPagamentoLabel(r)}</td>
-      <td>${Fmt.brl(r.valor)}</td>
+      <td${r.valor < 0 ? ' style="color:var(--income,#3ddc84);font-weight:600;" title="Reembolso / estorno (abate do total)"' : ''}>${Fmt.brl(r.valor)}</td>
       <td><span class="pill ${r.status === 'pago' ? 'ok' : 'pend'}" style="cursor:pointer;" onclick="alternarStatusDespesa('${r.id}')">${r.status === 'pago' ? 'Pago' : 'Pendente'}</span></td>
       <td class="row-actions"><button class="icon-btn" onclick="abrirModalDespesa('${r.id}')" title="Editar">✎</button><button class="icon-btn del" onclick="excluirDespesa('${r.id}')" title="Excluir">🗑</button></td>
     </tr>`).join('') : '<tr class="empty-row"><td colspan="9">Nenhuma despesa encontrada.</td></tr>';
@@ -1428,7 +1437,7 @@ function renderComparativoCategorias() {
     const porMes = mesesNoIntervalo.map(m => despesas.filter(r => r.categoria === cat && r.ref === m).reduce((s, r) => s + (r.valor || 0), 0));
     const total = porMes.reduce((s, v) => s + v, 0);
     return { cat, porMes, total };
-  }).filter(l => l.total > 0);
+  }).filter(l => l.total !== 0);
 
   const body = document.getElementById('compCatBody');
   if (linhas.length) {
@@ -1444,7 +1453,7 @@ function renderComparativoCategorias() {
   const linhasCartao = listaCartoes().map(cartao => {
     const porMes = mesesNoIntervalo.map(m => despesas.filter(r => r.ref === m && cartaoDaDespesa(r) === cartao).reduce((t, r) => t + (r.valor || 0), 0));
     return { cartao, porMes, total: porMes.reduce((t, v) => t + v, 0) };
-  }).filter(l => l.total > 0);
+  }).filter(l => l.total !== 0);
   document.getElementById('compCartaoThead').innerHTML = '<tr><th>Cartão</th>' + mesesNoIntervalo.map(m => `<th>${Fmt.ref(m)}</th>`).join('') + '<th>Total Acumulado</th></tr>';
   if (linhasCartao.length) {
     const totaisCartaoMes = mesesNoIntervalo.map((_, i) => linhasCartao.reduce((t, l) => t + l.porMes[i], 0));
@@ -1470,7 +1479,7 @@ function renderComparativoCategorias() {
     ? linhasOrdenadas.map(l => `
       <div style="margin-bottom:12px;">
         <div style="display:flex;justify-content:space-between;font-size:.8rem;margin-bottom:4px;"><span>${l.cat}</span><span style="font-weight:600;">${Fmt.brl(l.total)}</span></div>
-        <div style="background:var(--border2,#333);border-radius:6px;overflow:hidden;height:10px;"><div style="height:100%;width:${(l.total / maxTotal * 100).toFixed(1)}%;background:var(--danger,#e5484d);border-radius:6px;"></div></div>
+        <div style="background:var(--border2,#333);border-radius:6px;overflow:hidden;height:10px;"><div style="height:100%;width:${Math.max(0, l.total / maxTotal * 100).toFixed(1)}%;background:var(--danger,#e5484d);border-radius:6px;"></div></div>
       </div>`).join('')
     : '<p style="color:var(--text-muted,#888);font-size:.85rem;margin:0;">Nenhuma despesa no período selecionado.</p>';
 }
